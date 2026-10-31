@@ -1,0 +1,117 @@
+# VulnOrigin-Operator — cPanel / WHM Rule
+# =========================================
+# Targets: cPanel and WebHost Manager installations
+# 2026 research:
+#   - cPanel/WHM on default ports 2082/2083/2086/2087
+#   - /cpanel redirect reveals hosting infrastructure
+#   - XML-RPC API accessible without token on misconfigs
+#   - AutoSSL endpoint for subdomain enumeration
+
+name: cpanel
+category: PaaS
+version: "1.0.0"
+
+detection:
+  headers:
+    - name: "Server"
+      pattern: "cPanel|WHM"
+      confidence: 99
+    - name: "X-cPanel-Version"
+      pattern: ".*"
+      confidence: 99
+    - name: "Location"
+      pattern: ":2083|:2087|cpanel|whm"
+      confidence: 85
+  body_patterns:
+    - pattern: "cPanel"
+      confidence: 70
+    - pattern: "WHM"
+      confidence: 70
+    - pattern: "cPanelLogin"
+      confidence: 99
+    - pattern: "whmlogin"
+      confidence: 99
+
+safe_probes:
+  - path: "/cpanel"
+    method: GET
+    expected_status: [200, 301, 302, 403]
+    risk: HIGH
+    description: >
+      cPanel control panel redirect — 301/302 confirms cPanel is running
+      and reveals the management port (2082/2083).
+    tags: [cpanel, panel, hosting]
+
+  - path: "/whm"
+    method: GET
+    expected_status: [200, 301, 302, 403]
+    risk: CRITICAL
+    description: >
+      WHM (Web Host Manager) — server-level admin panel.
+      WHM access = root-level control over ALL hosted accounts.
+    tags: [whm, admin, critical, hosting]
+
+  - path: ":2083/cpsess/login/"
+    method: GET
+    expected_status: [200, 301]
+    risk: HIGH
+    description: >
+      cPanel SSL port 2083 — direct panel access probe.
+      If accessible, presents brute-force surface for hosting accounts.
+    tags: [cpanel, panel, port-2083]
+
+  - path: ":2087/"
+    method: GET
+    expected_status: [200, 301]
+    risk: CRITICAL
+    description: >
+      WHM SSL port 2087 — server admin access.
+      Access = control over all domains, databases, and email accounts.
+    tags: [whm, admin, critical, port-2087]
+
+  - path: "/xml-api/version"
+    method: GET
+    expected_status: [200, 401, 403]
+    risk: HIGH
+    description: >
+      cPanel XML-API version endpoint — if accessible without token,
+      confirms API access. API provides full account management capability.
+    tags: [api, version, information-disclosure]
+
+  - path: "/cgi-sys/defaultwebpage.cgi"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: >
+      cPanel default page CGI — confirms cPanel hosting infrastructure.
+      Version/configuration details sometimes exposed.
+    tags: [recon, hosting-confirmation]
+
+  - path: "/autossl-dv/"
+    method: GET
+    expected_status: [200, 302, 403]
+    risk: MEDIUM
+    description: >
+      AutoSSL endpoint — may expose domain validation files and
+      hosted domain list, enabling subdomain enumeration.
+    tags: [ssl, subdomain-enum]
+
+  - path: "/.well-known/cpanel-dcv/"
+    method: GET
+    expected_status: [200, 403]
+    risk: LOW
+    description: >
+      cPanel DCV (Domain Control Validation) directory —
+      used for SSL certificate issuance. File listing = domain list.
+    tags: [ssl, domain-enum]
+
+adaptive_paths:
+  high_confidence:
+    - /cpanel
+    - /whm
+    - /webmail
+    - /cpanel/
+  medium_confidence:
+    - /cgi-sys/
+    - /xml-api/
+    - /.cpanel/

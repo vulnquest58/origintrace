@@ -1,0 +1,85 @@
+# MongoDB — Unauthenticated NoSQL Database
+# ==========================================
+# Risk: Full data read/write without credentials
+# Research: ~55k MongoDB instances unauthenticated (Shodan 2025)
+# Note: HTTP-only probes — no direct TCP MongoDB wire protocol
+
+name: mongodb
+category: Database
+version: "1.0.0"
+
+priority: CRITICAL
+stealth_level: ultra_low
+stop_if_detected: false
+
+detection:
+  body_patterns:
+    - pattern: "It looks like you are trying to access MongoDB"
+      confidence: 99
+    - pattern: "\"ok\" : 1"
+      confidence: 80
+    - pattern: "mongostat"
+      confidence: 90
+
+safe_probes:
+  - path: "/"
+    method: GET
+    expected_status: [200]
+    risk: HIGH
+    description: >
+      MongoDB HTTP interface probe (port 28017, legacy).
+      Some versions serve a web interface on port 28017.
+      Response contains database list and server stats.
+    tags: [detection, mongodb, http-interface]
+
+  - path: "/serverStatus"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      MongoDB server status via HTTP interface.
+      Reveals version, uptime, connections, opcounters.
+    tags: [version, recon, status]
+
+  - path: "/admin/$cmd?filter_count=1&filter_query=%7B%7D&limit=0&skip=0&ns=admin.system.users"
+    method: GET
+    expected_status: [200, 401]
+    risk: CRITICAL
+    description: >
+      MongoDB admin user enumeration via HTTP interface.
+      If accessible, lists all database users with roles.
+    tags: [users, critical, unauth]
+
+  - path: "/listDatabases"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Database listing endpoint — reveals all databases
+      and their sizes without authentication.
+    tags: [databases, enumeration]
+
+adaptive_paths:
+  high_value:
+    - /
+    - /serverStatus
+    - /listDatabases
+
+behavior_signals:
+  - "Port 27017 open = MongoDB likely (wire protocol)"
+  - "Port 28017 open = legacy HTTP interface"
+  - "'It looks like you are trying to access MongoDB' = HTTP interface active"
+
+risk_patterns:
+  - "Unauth read = full data extraction"
+  - "Unauth write = data tampering, user creation"
+  - "admin db access = server config modification"
+
+stealth_notes:
+  - "HTTP interface on 28017 is rarely firewalled separately"
+  - "Wire protocol (27017) requires different tooling (mongosh)"
+  - "Single request to / confirms exposure"
+
+chain_with:
+  - grafana
+  - kibana

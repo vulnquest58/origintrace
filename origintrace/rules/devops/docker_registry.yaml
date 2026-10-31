@@ -1,0 +1,63 @@
+service: docker_registry
+description: "Container registry — Docker Hub private, Harbor, Nexus, JFrog"
+version: "1.0.0"
+risk_base: CRITICAL
+
+detection:
+  paths:
+    - /v2/
+    - /v2/_catalog
+    - /service/rest/v1/components
+  headers:
+    response_patterns:
+      - "Docker-Distribution-Api-Version"
+      - "Www-Authenticate: Bearer"
+      - "application/vnd.docker"
+
+safe_probes:
+  - path: /v2/
+    method: GET
+    expected_status: [200, 401]
+    risk: MEDIUM
+    description: "Docker Registry v2 API ping — confirms registry presence"
+
+  - path: /v2/_catalog
+    method: GET
+    expected_status: [200, 401, 403]
+    risk: CRITICAL
+    description: "Image catalog listing — unauthenticated = all private images exposed"
+
+  - path: /v2/_catalog?n=100
+    method: GET
+    expected_status: [200, 401]
+    risk: CRITICAL
+    description: "Full image catalog — paginated listing of ALL stored images"
+
+  - path: /v2/library/ubuntu/tags/list
+    method: GET
+    expected_status: [200, 401, 404]
+    risk: HIGH
+    description: "Image tag enumeration — confirms registry contents"
+
+  - path: /api/v2.0/projects
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: "Harbor registry API — project listing"
+
+  - path: /service/rest/v1/components
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: "Nexus repository components — artifact listing"
+
+adaptive_paths:
+  - /v2/_catalog
+  - /v2/tags/list
+  - /ui/
+  - /api/v2.0/
+  - /service/rest/
+  - /artifactory/
+
+attack_chain: "GET /v2/_catalog → list images → pull sensitive image → extract embedded secrets/code"
+mitre: "TA0009 Collection, T1213 Data from Information Repositories"

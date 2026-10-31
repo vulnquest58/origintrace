@@ -1,0 +1,83 @@
+service: gitlab_selfhosted
+description: "GitLab self-hosted — CI/CD exposure, API leaks, default credentials"
+version: "1.0.0"
+risk_base: CRITICAL
+
+detection:
+  ports: [80, 443, 8080, 8443]
+  paths:
+    - /users/sign_in
+    - /gitlab/
+    - /-/health
+  headers:
+    server_patterns:
+      - "nginx"
+    response_patterns:
+      - "GitLab"
+      - "gl-"
+      - "data-version"
+
+safe_probes:
+  - path: /-/health
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: "GitLab health check — confirms instance presence"
+
+  - path: /-/readiness
+    method: GET
+    expected_status: [200, 503]
+    risk: LOW
+    description: "GitLab readiness probe"
+
+  - path: /api/v4/version
+    method: GET
+    expected_status: [200, 401]
+    risk: MEDIUM
+    description: "GitLab version API — unauthenticated version disclosure"
+
+  - path: /api/v4/projects?visibility=public
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: "Public projects enumeration — source code exposure"
+
+  - path: /api/v4/groups
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: "Groups listing — organizational structure leak"
+
+  - path: /users/sign_in
+    method: GET
+    expected_status: [200]
+    risk: MEDIUM
+    description: "Login page exposed — credential brute-force surface"
+
+  - path: /explore/projects
+    method: GET
+    expected_status: [200, 302]
+    risk: HIGH
+    description: "Public project explorer — may expose private repos if misconfigured"
+
+  - path: /-/metrics
+    method: GET
+    expected_status: [200, 401, 403]
+    risk: MEDIUM
+    description: "GitLab Prometheus metrics — infrastructure data leakage"
+
+adaptive_paths:
+  - /api/v4/users
+  - /api/v4/runners
+  - /api/v4/admin/users
+  - /admin/
+  - /root
+  - /-/graphql
+  - /-/debug/rails/info/properties
+
+attack_chain: "Public API → /api/v4/projects → clone repos → extract secrets from code → lateral movement"
+cves:
+  - CVE-2021-22205  # RCE via image parsing
+  - CVE-2023-2825   # Path traversal
+  - CVE-2024-0402   # Arbitrary file write
+mitre: "TA0001 Initial Access, T1078 Valid Accounts"

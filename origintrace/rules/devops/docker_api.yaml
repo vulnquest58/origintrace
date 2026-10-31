@@ -1,0 +1,99 @@
+# Docker API — Unauthenticated Remote Code Execution
+# ====================================================
+# CVE-2026-34040: Auth bypass via oversized HTTP requests
+# CVE-2025-9074: Docker Desktop subnet exposure
+# Risk: Full host compromise via container escape
+
+name: docker_api
+category: DevOps
+version: "1.0.0"
+
+priority: CRITICAL
+stealth_level: ultra_low
+stop_if_detected: false
+
+detection:
+  headers:
+    - name: "Server"
+      pattern: "Docker"
+      confidence: 99
+    - name: "Content-Type"
+      pattern: "application/json"
+      confidence: 30
+  body_patterns:
+    - pattern: "\"Id\":"
+      confidence: 60
+    - pattern: "\"Names\":"
+      confidence: 80
+
+safe_probes:
+  - path: "/containers/json"
+    method: GET
+    expected_status: [200, 401]
+    risk: CRITICAL
+    description: >
+      Docker API container list — if 200 without auth, full container
+      inventory exposed. Lists all running containers, images, ports,
+      mounts, and network configs. Gateway to RCE via exec endpoint.
+    tags: [docker, unauth, rce, critical]
+
+  - path: "/version"
+    method: GET
+    expected_status: [200]
+    risk: MEDIUM
+    description: >
+      Docker version endpoint — reveals API version, Go version,
+      OS/arch for targeted exploit selection.
+    tags: [version, recon]
+
+  - path: "/info"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Docker system info — reveals container count, driver, runtime,
+      Swarm mode, and host kernel version.
+    tags: [info, infrastructure]
+
+  - path: "/images/json"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Docker image list — reveals application stack, base images,
+      internal registries, and potentially private image names.
+    tags: [images, recon]
+
+  - path: "/_ping"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: Docker API ping — confirms API is listening.
+    tags: [detection, ping]
+
+adaptive_paths:
+  high_value:
+    - /containers/json
+    - /images/json
+    - /version
+    - /info
+    - /swarm
+
+behavior_signals:
+  - "JSON response on port 2375/2376 = Docker API exposed"
+  - "200 on /containers/json without auth = CRITICAL"
+  - "Swarm mode = lateral movement to cluster nodes"
+
+risk_patterns:
+  - "Unauthenticated Docker API = full host RCE"
+  - "Container exec = code execution without Metasploit"
+  - "Host mount = filesystem read/write"
+
+stealth_notes:
+  - "Single GET to /version to confirm before deeper probing"
+  - "Never POST exec commands — read-only probes only"
+  - "Port 2375 = plaintext, 2376 = TLS (both may be unauth)"
+
+chain_with:
+  - kubernetes_api
+  - prometheus

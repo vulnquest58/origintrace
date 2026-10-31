@@ -1,0 +1,77 @@
+service: kong_api_gateway
+description: "Kong API Gateway — admin API exposure, route enumeration"
+version: "1.0.0"
+risk_base: HIGH
+
+detection:
+  ports: [8001, 8444, 8002, 443, 80]
+  paths:
+    - /kong/
+    - /kong-admin/
+  headers:
+    server_patterns:
+      - "kong"
+      - "openresty"
+    response_patterns:
+      - "\"tagline\":\"Welcome to kong\""
+      - "X-Kong-"
+      - "Via: kong/"
+
+safe_probes:
+  - path: /
+    method: GET
+    expected_status: [200]
+    response_must_contain: "tagline"
+    risk: HIGH
+    description: "Kong Admin API root — confirms admin API is exposed"
+
+  - path: /services
+    method: GET
+    expected_status: [200, 401]
+    risk: CRITICAL
+    description: "Kong services list — all proxied API endpoints enumerated"
+
+  - path: /routes
+    method: GET
+    expected_status: [200, 401]
+    risk: CRITICAL
+    description: "Kong route listing — complete API gateway map"
+
+  - path: /consumers
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: "Kong consumers — API key holders and users enumerated"
+
+  - path: /plugins
+    method: GET
+    expected_status: [200, 401]
+    risk: MEDIUM
+    description: "Kong plugins list — reveals auth methods and WAF rules in place"
+
+  - path: /key-auths
+    method: GET
+    expected_status: [200, 401]
+    risk: CRITICAL
+    description: "Kong API keys listing — direct key extraction"
+
+  - path: /status
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: "Kong node status — uptime and request metrics"
+
+adaptive_paths:
+  - /services
+  - /routes
+  - /consumers
+  - /plugins
+  - /certificates
+  - /upstreams
+  - /targets
+  - /key-auths
+  - /jwt
+  - /acls
+
+attack_chain: "GET /services → map all proxied APIs → GET /consumers → extract API keys → bypass auth on all services"
+mitre: "TA0007 Discovery, T1046 Network Service Discovery"

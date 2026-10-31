@@ -1,0 +1,107 @@
+# VulnOrigin-Operator — Roundcube Webmail Rule
+# =============================================
+# Targets: Roundcube webmail installations
+# 2026 research:
+#   - CVE-2023-43770: XSS via HTML email (still unpatched on many servers)
+#   - CVE-2024-37383: stored XSS in SMTP response message
+#   - /installer/ directory: reconfiguration without auth
+#   - /logs/ directory traversal (common misconfiguration)
+
+name: roundcube
+category: MailServer
+version: "1.0.0"
+
+detection:
+  headers:
+    - name: "Set-Cookie"
+      pattern: "roundcube_sessid|roundcube_sessauth"
+      confidence: 99
+    - name: "X-Powered-By"
+      pattern: "Roundcube"
+      confidence: 95
+  body_patterns:
+    - pattern: "Roundcube Webmail"
+      confidence: 99
+    - pattern: "rcmloginuser"
+      confidence: 95
+    - pattern: "assets/roundcube"
+      confidence: 90
+
+safe_probes:
+  - path: "/webmail/"
+    method: GET
+    expected_status: [200, 301, 302]
+    risk: HIGH
+    description: >
+      Roundcube at /webmail/ — primary installation path.
+      If 200, webmail login panel accessible. Brute-force surface.
+    tags: [webmail, panel]
+
+  - path: "/roundcube/"
+    method: GET
+    expected_status: [200, 301]
+    risk: HIGH
+    description: Roundcube at /roundcube/ — alternative path.
+    tags: [webmail, panel]
+
+  - path: "/webmail/installer/"
+    method: GET
+    expected_status: [200, 403]
+    risk: CRITICAL
+    description: >
+      Roundcube installer directory — if accessible after installation,
+      allows reconfiguration of SMTP/IMAP settings, database credentials,
+      and could enable RCE through plugin installation.
+    tags: [installer, critical, reconfiguration]
+
+  - path: "/roundcube/installer/"
+    method: GET
+    expected_status: [200, 403]
+    risk: CRITICAL
+    description: >
+      Roundcube installer at /roundcube/installer/ — variant path.
+    tags: [installer, critical]
+
+  - path: "/webmail/logs/errors.log"
+    method: GET
+    expected_status: [200, 403]
+    risk: HIGH
+    description: >
+      Roundcube error log — may contain database connection errors with
+      credentials, IMAP authentication failures with valid usernames,
+      and PHP stack traces with file paths.
+    tags: [log-exposure, credentials, information-disclosure]
+
+  - path: "/webmail/config/config.inc.php"
+    method: GET
+    expected_status: [200, 403]
+    risk: CRITICAL
+    description: >
+      Roundcube configuration file — contains IMAP/SMTP credentials,
+      database password, DES key, and API tokens.
+    tags: [config, credentials, critical]
+
+  - path: "/webmail/temp/"
+    method: GET
+    expected_status: [200, 403]
+    risk: MEDIUM
+    description: >
+      Roundcube temp directory — may contain uploaded files,
+      attachment caches, and cached email content.
+    tags: [temp-files, information-disclosure]
+
+  - path: "/webmail/CHANGELOG"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: Roundcube version via CHANGELOG for CVE targeting.
+    tags: [version-disclosure, recon]
+
+adaptive_paths:
+  high_confidence:
+    - /webmail/
+    - /roundcube/
+    - /mail/
+  medium_confidence:
+    - /webmail/installer/
+    - /webmail/logs/

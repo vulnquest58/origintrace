@@ -1,0 +1,130 @@
+# Keycloak — Identity & Access Management Server
+# ================================================
+# CVE-2023-6134: XSS via theme template injection
+# CVE-2023-6927: Open redirect in OIDC
+# CVE-2024-1132: Path traversal bypass (Keycloak < 24.0.3)
+# Research 2026: Keycloak = master key for entire SSO infrastructure
+# Impact: Realm admin = control all connected applications
+
+name: keycloak
+category: DevOps
+version: "1.0.0"
+
+priority: CRITICAL
+stealth_level: low
+stop_if_detected: false
+
+detection:
+  headers:
+    - name: "X-Frame-Options"
+      pattern: "SAMEORIGIN"
+      confidence: 20
+  body_patterns:
+    - pattern: "Keycloak"
+      confidence: 90
+    - pattern: "keycloak.js"
+      confidence: 99
+    - pattern: "\"realm\":"
+      confidence: 85
+    - pattern: "/auth/realms/"
+      confidence: 99
+
+safe_probes:
+  - path: "/auth/realms/master"
+    method: GET
+    expected_status: [200, 404]
+    risk: HIGH
+    description: >
+      Master realm metadata — reveals Keycloak version, realm config,
+      public key, OIDC endpoints. Version → CVE targeting.
+      All Keycloak instances have 'master' realm unless renamed.
+    tags: [realm, master, recon, version]
+
+  - path: "/auth/realms/master/.well-known/openid-configuration"
+    method: GET
+    expected_status: [200, 404]
+    risk: MEDIUM
+    description: >
+      OIDC discovery document — reveals all OAuth2/OIDC endpoints,
+      supported scopes, grant types, and signing algorithms.
+      Maps the complete authentication infrastructure.
+    tags: [oidc, oauth, configuration]
+
+  - path: "/auth/admin/master/console/"
+    method: GET
+    expected_status: [200, 302, 403]
+    risk: CRITICAL
+    description: >
+      Keycloak Admin Console — if accessible, full realm management.
+      Admin = create users, reset passwords, disable MFA, add clients.
+      Critical: admin console on master realm = controls ALL realms.
+    tags: [admin, critical, console]
+
+  - path: "/auth/realms/master/protocol/openid-connect/token"
+    method: POST
+    headers:
+      Content-Type: "application/x-www-form-urlencoded"
+    body: "grant_type=password&client_id=admin-cli&username=admin&password=admin"
+    expected_status: [200, 401, 400]
+    risk: CRITICAL
+    description: >
+      Default credential test: admin:admin on admin-cli client.
+      200 = valid token returned → full admin API access.
+      Common misconfiguration on self-hosted Keycloak deployments.
+    tags: [default-creds, auth, critical]
+
+  - path: "/auth/admin/realms"
+    method: GET
+    expected_status: [200, 401, 403]
+    risk: CRITICAL
+    description: >
+      Admin API realm listing — if 200 without auth, lists all realms
+      with client configurations and user counts.
+    tags: [admin-api, realms, unauth]
+
+  - path: "/auth/realms/master/account"
+    method: GET
+    expected_status: [200, 302]
+    risk: MEDIUM
+    description: >
+      User account portal — reveals realm name and UI theme version.
+    tags: [account, recon]
+
+  - path: "/auth/"
+    method: GET
+    expected_status: [200, 302, 404]
+    risk: LOW
+    description: Keycloak root — confirms deployment and path prefix.
+    tags: [detection]
+
+adaptive_paths:
+  high_value:
+    - /auth/admin/
+    - /auth/realms/
+    - /auth/admin/master/console/
+  medium_confidence:
+    - /auth/
+    - /realms/
+
+behavior_signals:
+  - "keycloak.js in body = Keycloak confirmed"
+  - "'realm' in JSON = realm metadata endpoint"
+  - "200 on /auth/admin/master/console/ = CRITICAL admin exposed"
+  - "Token response with access_token = default creds valid"
+
+risk_patterns:
+  - "Admin access = control all SSO-connected applications"
+  - "Realm compromise = lateral movement to all federated apps"
+  - "OIDC endpoints = OAuth2 token hijacking surface"
+  - "CVE-2024-1132: path traversal bypasses realm isolation"
+
+stealth_notes:
+  - "Default creds test: single POST, check status only"
+  - "master realm always exists — start there"
+  - "/auth/ prefix may vary (can be /keycloak/ or /)"
+  - "OIDC config is public by design — not a finding alone"
+
+chain_with:
+  - graphql
+  - nextjs
+  - springboot

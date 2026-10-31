@@ -1,0 +1,127 @@
+# FastAPI / OpenAPI — Auto-Documentation Attack Surface
+# =======================================================
+# Risk: Auto-generated docs expose full API blueprint,
+#       input validation bypass via type coercion,
+#       SSRF via URL parameters in async endpoints
+# Research 2026: FastAPI #3 Python framework, docs enabled by default
+
+name: fastapi
+category: Framework
+version: "1.0.0"
+
+priority: HIGH
+stealth_level: low
+stop_if_detected: false
+
+detection:
+  headers:
+    - name: "Server"
+      pattern: "uvicorn"
+      confidence: 90
+  body_patterns:
+    - pattern: "swagger-ui"
+      confidence: 85
+    - pattern: "openapi.json"
+      confidence: 90
+    - pattern: "\"openapi\": \"3"
+      confidence: 99
+    - pattern: "FastAPI"
+      confidence: 80
+    - pattern: "redoc"
+      confidence: 70
+
+safe_probes:
+  - path: "/docs"
+    method: GET
+    expected_status: [200, 403, 404]
+    risk: HIGH
+    description: >
+      FastAPI Swagger UI — interactive API documentation.
+      If accessible in production, provides full endpoint list,
+      parameter schemas, authentication requirements, and
+      "Try it out" execution interface.
+    tags: [swagger, docs, api-blueprint]
+
+  - path: "/openapi.json"
+    method: GET
+    expected_status: [200, 403, 404]
+    risk: HIGH
+    description: >
+      OpenAPI schema — machine-readable API specification.
+      Contains ALL endpoints, request/response schemas,
+      security definitions, and server URLs.
+      Ideal for automated vulnerability scanning input.
+    tags: [openapi, schema, enumeration]
+
+  - path: "/redoc"
+    method: GET
+    expected_status: [200, 403, 404]
+    risk: MEDIUM
+    description: >
+      ReDoc API documentation — alternative doc renderer.
+      Confirms public API documentation is enabled.
+    tags: [redoc, docs]
+
+  - path: "/api/v1/openapi.json"
+    method: GET
+    expected_status: [200, 404]
+    risk: HIGH
+    description: Versioned OpenAPI schema — common FastAPI deployment pattern.
+    tags: [openapi, versioned]
+
+  - path: "/.env"
+    method: GET
+    expected_status: [200, 403, 404]
+    risk: CRITICAL
+    description: >
+      FastAPI .env file — DATABASE_URL, SECRET_KEY, API_KEY,
+      SMTP credentials common in Python dotenv patterns.
+    tags: [env, credentials, critical]
+
+  - path: "/metrics"
+    method: GET
+    expected_status: [200, 404]
+    risk: MEDIUM
+    description: >
+      Prometheus metrics (common FastAPI + prometheus-fastapi-instrumentator).
+      Reveals endpoint hit rates and latency by route.
+    tags: [metrics, prometheus, recon]
+
+  - path: "/health"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: FastAPI health endpoint — version and dependency status.
+    tags: [health, detection]
+
+adaptive_paths:
+  high_value:
+    - /docs
+    - /openapi.json
+    - /redoc
+  medium_confidence:
+    - /api/docs
+    - /v1/docs
+    - /api/v1/
+
+behavior_signals:
+  - "uvicorn in Server header = ASGI Python server (FastAPI/Starlette)"
+  - "openapi.json accessible = full API schema available"
+  - "/docs with 200 = Swagger UI in production"
+  - "swagger-ui in body = FastAPI docs enabled"
+
+risk_patterns:
+  - "Public OpenAPI = complete attack surface blueprint"
+  - "Async endpoints = potential SSRF via URL parameters"
+  - "Type coercion bypass: string → int → SQL injection surface"
+  - "Background tasks = blind SSRF via async processing"
+
+stealth_notes:
+  - "/openapi.json is smallest request — start there"
+  - "OpenAPI spec reveals auth methods — check securitySchemes"
+  - "Look for 'deprecated: true' endpoints — often less secured"
+
+chain_with:
+  - graphql
+  - redis
+  - elasticsearch

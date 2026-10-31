@@ -1,0 +1,88 @@
+service: websocket_realtime
+description: "WebSocket and real-time endpoints — auth bypass, origin spoofing"
+version: "1.0.0"
+risk_base: HIGH
+
+detection:
+  paths:
+    - /ws
+    - /ws/
+    - /socket.io/
+    - /cable
+    - /hub
+    - /signalr/
+  headers:
+    response_patterns:
+      - "Upgrade: websocket"
+      - "101 Switching"
+      - "socket.io"
+      - "ActionCable"
+
+safe_probes:
+  - path: /ws
+    method: GET
+    headers:
+      Upgrade: websocket
+      Connection: Upgrade
+      Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+      Sec-WebSocket-Version: "13"
+    expected_status: [101, 200, 400, 404]
+    risk: HIGH
+    description: "WebSocket handshake — 101 = upgrade accepted → WAF bypass possible"
+
+  - path: /socket.io/?EIO=4&transport=polling
+    method: GET
+    expected_status: [200, 400, 404]
+    risk: HIGH
+    description: "Socket.IO polling endpoint — auth check on handshake"
+
+  - path: /cable
+    method: GET
+    headers:
+      Upgrade: websocket
+      Connection: Upgrade
+      Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+      Sec-WebSocket-Version: "13"
+      Origin: "https://evil.com"
+    expected_status: [101, 200, 403]
+    risk: CRITICAL
+    description: "ActionCable with spoofed Origin — 101 = no origin validation (CSWSH)"
+
+  - path: /hub
+    method: GET
+    headers:
+      Upgrade: websocket
+      Connection: Upgrade
+      Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+      Sec-WebSocket-Version: "13"
+    expected_status: [101, 404]
+    risk: HIGH
+    description: "SignalR hub WebSocket endpoint"
+
+  - path: /ws/chat
+    method: GET
+    headers:
+      Upgrade: websocket
+      Connection: Upgrade
+      Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+      Sec-WebSocket-Version: "13"
+      Origin: "null"
+    expected_status: [101, 200, 403]
+    risk: HIGH
+    description: "WS with null origin — some servers accept null origin bypassing CORS"
+
+adaptive_paths:
+  - /ws
+  - /ws/
+  - /websocket
+  - /socket.io/
+  - /cable
+  - /hub
+  - /signalr/negotiate
+  - /live
+  - /realtime
+  - /push
+  - /events
+
+attack_chain: "WS upgrade with spoofed Origin → bypass CORS → subscribe to private channels → real-time data interception"
+mitre: "TA0006 Credential Access, T1185 Browser Session Hijacking"

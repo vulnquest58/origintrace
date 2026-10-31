@@ -1,0 +1,107 @@
+# VulnOrigin-Operator — phpMyAdmin Rule
+# =======================================
+# Targets: phpMyAdmin installations
+# 2026 research:
+#   - PMASA-2023-2: Remote code execution via LOAD DATA INFILE
+#   - Brute-force surface: no rate limiting by default
+#   - /setup/ directory: often accessible after install
+#   - Token bypass in older versions
+
+name: phpmyadmin
+category: Database
+version: "1.0.0"
+
+detection:
+  headers:
+    - name: "Set-Cookie"
+      pattern: "phpMyAdmin"
+      confidence: 99
+    - name: "X-Powered-By"
+      pattern: "phpMyAdmin"
+      confidence: 95
+  body_patterns:
+    - pattern: "phpMyAdmin"
+      confidence: 90
+    - pattern: "pma_cookie_secret"
+      confidence: 99
+    - pattern: "PMA_VERSION"
+      confidence: 99
+
+safe_probes:
+  - path: "/phpmyadmin/"
+    method: GET
+    expected_status: [200, 301, 302]
+    risk: HIGH
+    description: >
+      phpMyAdmin installation at /phpmyadmin/ — if accessible, exposes
+      database management interface. Default location for many installations.
+    tags: [admin, database, panel]
+
+  - path: "/pma/"
+    method: GET
+    expected_status: [200, 301]
+    risk: HIGH
+    description: >
+      Alternative phpMyAdmin path /pma/ — common alias.
+    tags: [admin, database]
+
+  - path: "/phpmyadmin/setup/"
+    method: GET
+    expected_status: [200, 403]
+    risk: CRITICAL
+    description: >
+      phpMyAdmin setup directory — allows server configuration without auth.
+      If 200, attacker can reconfigure database server settings.
+    tags: [setup, critical, unauth]
+
+  - path: "/phpmyadmin/README"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: >
+      phpMyAdmin README file — reveals exact version for CVE targeting.
+    tags: [version-disclosure, recon]
+
+  - path: "/phpmyadmin/ChangeLog"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: >
+      phpMyAdmin ChangeLog — confirms version via changelog entries.
+    tags: [version-disclosure]
+
+  - path: "/phpmyadmin/sql.php"
+    method: GET
+    expected_status: [200, 302, 401]
+    risk: HIGH
+    description: >
+      phpMyAdmin SQL execution endpoint — direct access test.
+      302 to login = protected. 200 = possible auth bypass.
+    tags: [sql, auth-bypass]
+
+  - path: "/db/phpmyadmin/"
+    method: GET
+    expected_status: [200]
+    risk: HIGH
+    description: phpMyAdmin at /db/ path — alternative installation location.
+    tags: [admin, database]
+
+  - path: "/phpmyadmin/libraries/vendor_config.php"
+    method: GET
+    expected_status: [200, 403]
+    risk: MEDIUM
+    description: >
+      phpMyAdmin vendor configuration — may expose library paths
+      and configuration details.
+    tags: [config, information-disclosure]
+
+adaptive_paths:
+  high_confidence:
+    - /phpmyadmin/
+    - /pma/
+    - /phpMyAdmin/
+    - /phpmyadmin/setup/
+  medium_confidence:
+    - /db/
+    - /mysql/
+    - /myadmin/

@@ -1,0 +1,116 @@
+# Kibana — Elasticsearch Visualization Panel
+# ============================================
+# Risk: Log data access, ES cluster access via Kibana proxy,
+#       Dev Tools console → arbitrary ES queries
+# Research: CVE-2019-7609 (still exploited 2025), CVE-2023-31414
+
+name: kibana
+category: Monitoring
+version: "1.0.0"
+
+priority: HIGH
+stealth_level: low
+stop_if_detected: false
+
+detection:
+  headers:
+    - name: "kbn-name"
+      pattern: ".*"
+      confidence: 99
+    - name: "kbn-version"
+      pattern: ".*"
+      confidence: 99
+    - name: "X-Powered-By"
+      pattern: "Kibana"
+      confidence: 95
+  body_patterns:
+    - pattern: "kbn-injected-metadata"
+      confidence: 99
+    - pattern: "\"kbnBuildNumber\""
+      confidence: 99
+    - pattern: "Kibana"
+      confidence: 60
+
+safe_probes:
+  - path: "/api/status"
+    method: GET
+    expected_status: [200, 401]
+    risk: MEDIUM
+    description: >
+      Kibana status API — reveals version, plugin list, ES cluster UUID,
+      cluster status, and heap usage. Version exposes CVE surface.
+    tags: [version, recon, status]
+
+  - path: "/app/kibana"
+    method: GET
+    expected_status: [200, 302, 401]
+    risk: HIGH
+    description: >
+      Kibana main dashboard — if 200 without auth, full log access.
+      Anonymous access is common on internal-facing deployments
+      accidentally exposed.
+    tags: [dashboard, unauth, logs]
+
+  - path: "/api/console/proxy?path=/_cat/indices&method=GET"
+    method: GET
+    expected_status: [200, 403]
+    risk: CRITICAL
+    description: >
+      Kibana Dev Tools Console proxy — forwards requests to Elasticsearch.
+      If accessible, equivalent to direct ES API access.
+      Lists all indices including sensitive ones.
+    tags: [elasticsearch, proxy, critical, unauth]
+
+  - path: "/api/saved_objects/_find?type=index-pattern"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Saved objects — reveals all configured index patterns,
+      exposing the structure of stored log data.
+    tags: [index-patterns, recon]
+
+  - path: "/api/features"
+    method: GET
+    expected_status: [200, 401]
+    risk: LOW
+    description: Kibana features list — confirms version features for exploit targeting.
+    tags: [features, version]
+
+  - path: "/.kibana/_search"
+    method: GET
+    expected_status: [200, 404, 401]
+    risk: HIGH
+    description: >
+      Direct .kibana index search — if ES is accessible behind Kibana,
+      exposes saved dashboards, visualizations, and config.
+    tags: [elasticsearch, index]
+
+adaptive_paths:
+  high_value:
+    - /api/status
+    - /app/kibana
+    - /api/console/proxy
+  medium_confidence:
+    - /api/saved_objects/
+    - /api/features
+
+behavior_signals:
+  - "kbn-name header = Kibana confirmed"
+  - "200 on /app/kibana without auth = full log exposure"
+  - "Dev Tools console proxy = ES cluster access"
+
+risk_patterns:
+  - "Log data access = PII, credentials, internal events"
+  - "ES proxy = database manipulation capability"
+  - "Index pattern leakage = data structure reconnaissance"
+
+stealth_notes:
+  - "Check /api/status first (low risk, high info)"
+  - "Avoid POST to Dev Tools — read-only GET proxy only"
+  - "kbn-version header reveals exact version for CVE"
+
+chain_with:
+  - prometheus
+  - grafana
+  - elasticsearch

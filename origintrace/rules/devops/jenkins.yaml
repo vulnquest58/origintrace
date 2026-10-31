@@ -1,0 +1,143 @@
+# Jenkins CI/CD Server — Remote Code Execution Surface
+# ======================================================
+# CVE-2024-23897: Arbitrary file read via CLI (CRITICAL, CVSS 9.8)
+# CVE-2023-27898: XSS via update center (stored XSS)
+# CVE-2016-0792: Script console RCE (still deployed on old instances)
+# Research 2026: Jenkins remains #1 DevOps RCE target in bug bounties
+
+name: jenkins
+category: DevOps
+version: "1.0.0"
+
+priority: CRITICAL
+stealth_level: low
+stop_if_detected: false
+
+detection:
+  headers:
+    - name: "X-Jenkins"
+      pattern: ".*"
+      confidence: 99
+    - name: "X-Jenkins-Session"
+      pattern: ".*"
+      confidence: 99
+    - name: "X-Instance-Identity"
+      pattern: ".*"
+      confidence: 95
+    - name: "Server"
+      pattern: "Jetty"
+      confidence: 40
+  body_patterns:
+    - pattern: "Jenkins"
+      confidence: 70
+    - pattern: "hudson.model"
+      confidence: 99
+    - pattern: "\"_class\":\"hudson"
+      confidence: 99
+
+safe_probes:
+  - path: "/api/json"
+    method: GET
+    expected_status: [200, 401, 403]
+    risk: HIGH
+    description: >
+      Jenkins API root — if 200 without auth, lists all jobs,
+      build statuses, and pipeline names. Anonymous access enabled.
+    tags: [api, unauth, jobs]
+
+  - path: "/api/json?tree=jobs[name,url,description]"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Jenkins job listing with descriptions — reveals project names,
+      repository URLs, and deployment targets.
+    tags: [jobs, recon, repos]
+
+  - path: "/script"
+    method: GET
+    expected_status: [200, 302, 403]
+    risk: CRITICAL
+    description: >
+      Jenkins Groovy Script Console — if accessible, full RCE on the
+      Jenkins server and all connected agents. The most critical
+      Jenkins endpoint in existence.
+    tags: [script-console, rce, critical]
+
+  - path: "/credentials/"
+    method: GET
+    expected_status: [200, 302, 403]
+    risk: CRITICAL
+    description: >
+      Jenkins credential store — SSH keys, API tokens, passwords,
+      AWS/GCP/Azure service account credentials stored here.
+    tags: [credentials, critical, secrets]
+
+  - path: "/manage"
+    method: GET
+    expected_status: [200, 302, 403]
+    risk: HIGH
+    description: >
+      Jenkins management panel — system configuration, plugin management.
+      Access = admin-level control.
+    tags: [admin, management]
+
+  - path: "/asynchPeople/"
+    method: GET
+    expected_status: [200, 401]
+    risk: MEDIUM
+    description: >
+      Jenkins user listing — enumerates all Jenkins users.
+      Used for credential stuffing attacks.
+    tags: [users, enumeration]
+
+  - path: "/login?from=%2F"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: >
+      Jenkins login page — X-Jenkins header reveals exact version.
+      Version < 2.441 = CVE-2024-23897 (arbitrary file read).
+    tags: [login, version]
+
+  - path: "/cli"
+    method: GET
+    expected_status: [200, 404]
+    risk: HIGH
+    description: >
+      Jenkins CLI endpoint — CVE-2024-23897 exploits this via
+      @/etc/passwd argument to arbitrary file read commands.
+    tags: [cli, cve, file-read]
+
+adaptive_paths:
+  high_value:
+    - /script
+    - /credentials/
+    - /api/json
+    - /manage
+  medium_confidence:
+    - /asynchPeople/
+    - /cli
+
+behavior_signals:
+  - "X-Jenkins header = exact version for CVE-2024-23897"
+  - "200 on /api/json = anonymous read access"
+  - "200 on /script = CRITICAL RCE available"
+  - "X-Instance-Identity = RSA public key for auth bypass research"
+
+risk_patterns:
+  - "CVE-2024-23897: file read via CLI args (CVSS 9.8)"
+  - "Script console = OS command execution on server + agents"
+  - "Credential store = cloud keys, SSH keys, API tokens"
+  - "Job configs = source code repos, deployment targets"
+
+stealth_notes:
+  - "X-Jenkins version in response header — check before probing"
+  - "Version < 2.441 = file read via /cli POST (no auth needed)"
+  - "Never POST to /script — that executes code"
+  - "Jobs API reveals application architecture passively"
+
+chain_with:
+  - docker_api
+  - kubernetes_api
+  - github_actions

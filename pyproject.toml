@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "origintrace"
+version = "1.0.0"
+description = "Evidence-first origin IP discovery for authorised security testing"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "vulnquest58" }]
+keywords = ["security", "bug-bounty", "reconnaissance", "origin", "cdn-bypass"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+]
+dependencies = [
+    "httpx>=0.27",
+    "dnspython>=2.4",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+origintrace = "origintrace.cli:main"
+
+[project.urls]
+Repository = "https://github.com/vulnquest58/origintrace"
+
+[tool.setuptools]
+packages = ["origintrace"]
+
+[tool.setuptools.package-data]
+# Both datasets and the YAML rule library live inside the package so that an
+# installed copy can find them. Shipping them as data-files put them under
+# sys.prefix, where `--rules` could not see them.
+origintrace = ["data/*.json", "rules/*.yaml", "rules/*/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

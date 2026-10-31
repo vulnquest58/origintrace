@@ -1,0 +1,109 @@
+# VulnOrigin-Operator :: WordPress Detection Rules
+# =================================================
+# Detects WordPress CMS and maps high-value endpoints
+# common in bug bounty targets.
+
+name: wordpress
+category: cms
+priority: HIGH
+
+detection:
+  headers:
+    - name: "X-Powered-By"
+      pattern: "PHP"
+      confidence: 20
+    - name: "Link"
+      pattern: "wp-json"
+      confidence: 80
+    - name: "X-Pingback"
+      pattern: "xmlrpc.php"
+      confidence: 85
+
+  body_patterns:
+    - pattern: "wp-content/"
+      confidence: 90
+    - pattern: "wp-includes/"
+      confidence: 90
+    - pattern: "wp-json"
+      confidence: 85
+    - pattern: "/wp-login.php"
+      confidence: 80
+
+  paths:
+    - path: "/wp-login.php"
+      expected_status: [200, 301, 302]
+      confidence_boost: 70
+    - path: "/wp-admin/"
+      expected_status: [200, 301, 302, 403]
+      confidence_boost: 70
+    - path: "/wp-json/wp/v2/users"
+      expected_status: [200]
+      confidence_boost: 60
+
+# Paths to probe once WordPress is confirmed
+probes:
+  - path: "/wp-login.php"
+    method: GET
+    risk: MEDIUM
+    description: "WordPress login panel"
+    tags: [auth, panel]
+
+  - path: "/wp-admin/"
+    method: GET
+    risk: HIGH
+    description: "WordPress admin dashboard"
+    tags: [admin, panel]
+
+  - path: "/wp-json/wp/v2/users"
+    method: GET
+    risk: HIGH
+    description: "WordPress REST API user enumeration"
+    tags: [api, enum, credential]
+
+  - path: "/wp-json/wp/v2/posts"
+    method: GET
+    risk: LOW
+    description: "WordPress REST API posts (information disclosure)"
+    tags: [api, info]
+
+  - path: "/xmlrpc.php"
+    method: POST
+    risk: HIGH
+    description: "WordPress XML-RPC (bruteforce / SSRF vector)"
+    tags: [auth, ssrf, brute]
+
+  - path: "/wp-content/debug.log"
+    method: GET
+    risk: HIGH
+    description: "WordPress debug log (may expose credentials)"
+    tags: [debug, disclosure]
+
+  - path: "/.env"
+    method: GET
+    risk: CRITICAL
+    description: "Environment file (credentials exposure)"
+    tags: [config, credential]
+
+  - path: "/wp-config.php.bak"
+    method: GET
+    risk: CRITICAL
+    description: "WordPress config backup (DB credentials)"
+    tags: [backup, credential]
+
+  - path: "/wp-json/wp/v2/settings"
+    method: GET
+    risk: HIGH
+    description: "WordPress settings API (requires auth check)"
+    tags: [api, config]
+
+  - path: "/wp-cron.php"
+    method: GET
+    risk: LOW
+    description: "WordPress cron endpoint (DoS potential)"
+    tags: [misc]
+
+# Safe validation probe
+validation:
+  path: "/wp-login.php"
+  expected_response_contains: "wp-login"
+  false_positive_check: true

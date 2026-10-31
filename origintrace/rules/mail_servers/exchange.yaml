@@ -1,0 +1,148 @@
+# Microsoft Exchange — OWA / ECP Exposure
+# =========================================
+# CVE-2026-42897: OWA XSS via crafted email (actively exploited Jun 2026)
+# CVE-2021-26855: ProxyLogon SSRF (still unpatched on legacy installs)
+# CVE-2021-34473: ProxyShell RCE chain
+# Strategy: version detection → legacy endpoint check → ECP exposure
+
+name: exchange
+category: Mail
+version: "1.0.0"
+
+priority: CRITICAL
+stealth_level: low
+stop_if_detected: false
+
+detection:
+  headers:
+    - name: "X-OWA-Version"
+      pattern: ".*"
+      confidence: 99
+    - name: "X-FEServer"
+      pattern: ".*"
+      confidence: 95
+    - name: "X-BEServer"
+      pattern: ".*"
+      confidence: 95
+    - name: "X-Powered-By"
+      pattern: "ASP\\.NET"
+      confidence: 40
+    - name: "Server"
+      pattern: "Microsoft-IIS"
+      confidence: 30
+  body_patterns:
+    - pattern: "OWA"
+      confidence: 70
+    - pattern: "Outlook Web App"
+      confidence: 90
+    - pattern: "Exchange"
+      confidence: 60
+
+safe_probes:
+  - path: "/owa/"
+    method: GET
+    expected_status: [200, 302, 401]
+    risk: MEDIUM
+    description: >
+      Outlook Web Access login portal — version in X-OWA-Version header.
+      Brute-force surface for domain credentials.
+      CVE-2026-42897: XSS via email in OWA context.
+    tags: [owa, panel, version]
+
+  - path: "/ecp/"
+    method: GET
+    expected_status: [200, 302, 401]
+    risk: HIGH
+    description: >
+      Exchange Control Panel — admin interface.
+      CVE-2021-26855 (ProxyLogon) targets /ecp/ via SSRF to bypass auth.
+      If version < 15.2.986.9 / < 15.1.2375.7, ProxyLogon applies.
+    tags: [ecp, admin, proxylogon]
+
+  - path: "/autodiscover/autodiscover.xml"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Exchange Autodiscover — leaks internal server names, AD domain,
+      and Exchange version. Used in NTLM relay attacks.
+      POST with crafted XML triggers SSRF in vulnerable versions.
+    tags: [autodiscover, info-disclosure, ntlm]
+
+  - path: "/mapi/emsmdb/"
+    method: POST
+    headers:
+      Content-Type: "application/mapi-http"
+    expected_status: [200, 400, 401]
+    risk: HIGH
+    description: >
+      MAPI over HTTP endpoint — CVE-2021-34473 (ProxyShell) attack chain.
+      Accessible pre-auth via /mapi/emsmdb/ path confusion.
+    tags: [mapi, proxyshell, rce]
+
+  - path: "/ews/exchange.asmx"
+    method: GET
+    expected_status: [200, 401]
+    risk: MEDIUM
+    description: >
+      Exchange Web Services (EWS) — SOAP-based API for email access.
+      Pre-auth SSRF in vulnerable versions via /ews/ path.
+    tags: [ews, api, ssrf]
+
+  - path: "/rpc/"
+    method: GET
+    expected_status: [200, 401, 403]
+    risk: MEDIUM
+    description: >
+      RPC over HTTP endpoint — legacy Exchange protocol.
+      Presence indicates older Exchange version (2013/2016).
+    tags: [rpc, legacy, version]
+
+  - path: "/Microsoft-Server-ActiveSync/"
+    method: OPTIONS
+    expected_status: [200, 401]
+    risk: LOW
+    description: >
+      ActiveSync endpoint — mobile device sync protocol.
+      Version enumeration via OPTIONS response.
+    tags: [activesync, mobile, version]
+
+  - path: "/.well-known/autodiscover/autodiscover.json"
+    method: GET
+    expected_status: [200, 404]
+    risk: LOW
+    description: Modern autodiscover JSON endpoint — confirms Exchange Online or on-prem.
+    tags: [autodiscover, recon]
+
+adaptive_paths:
+  high_value:
+    - /owa/
+    - /ecp/
+    - /autodiscover/
+    - /mapi/
+  medium_confidence:
+    - /ews/
+    - /rpc/
+    - /oab/
+
+behavior_signals:
+  - "X-OWA-Version header = exact Exchange version for CVE targeting"
+  - "X-FEServer/X-BEServer = internal server names leaked"
+  - "401 on /ecp/ with NTLM = domain credential harvest surface"
+  - "Autodiscover response = internal AD structure"
+
+risk_patterns:
+  - "ProxyLogon (CVE-2021-26855): pre-auth SSRF → auth bypass → RCE"
+  - "ProxyShell (CVE-2021-34473): /mapi/ path confusion → mailbox write → RCE"
+  - "CVE-2026-42897: XSS via OWA email → session hijack"
+  - "NTLM auth challenges → credential relay attacks"
+
+stealth_notes:
+  - "X-OWA-Version tells you exact build number → precise CVE"
+  - "Compare against patched versions: 15.2.1544+ = safe for ProxyShell"
+  - "Avoid login attempts — NTLM lockout risk after 5 fails"
+  - "Autodiscover POST can trigger outbound SSRF → verify passively"
+
+chain_with:
+  - roundcube
+  - communigate

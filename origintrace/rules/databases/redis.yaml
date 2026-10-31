@@ -1,0 +1,67 @@
+# Redis — Unauthenticated In-Memory Database
+# ============================================
+# Risk: Session hijack (sessions in Redis), RCE via config rewrite,
+#       credential theft, cache poisoning
+# Research: Redis RESP protocol over HTTP (CVE-2022-0543 class)
+
+name: redis
+category: Database
+version: "1.0.0"
+
+priority: CRITICAL
+stealth_level: ultra_low
+stop_if_detected: false
+
+detection:
+  body_patterns:
+    - pattern: "-NOAUTH Authentication required"
+      confidence: 99
+    - pattern: "+PONG"
+      confidence: 99
+    - pattern: "redis_version"
+      confidence: 95
+
+safe_probes:
+  - path: "/"
+    method: GET
+    expected_status: [200]
+    risk: HIGH
+    description: >
+      Redis HTTP probe — some Redis instances respond to malformed
+      HTTP with RESP protocol errors that reveal Redis is running.
+      "+PONG" or "-ERR" in body = Redis confirmed.
+    tags: [detection, redis]
+
+  - path: "/info"
+    method: GET
+    expected_status: [200]
+    risk: HIGH
+    description: >
+      Redis INFO via HTTP (when Redis HTTP compatibility mode enabled).
+      Reveals redis_version, connected_clients, used_memory,
+      keyspace info, and replication config.
+    tags: [info, version, recon]
+
+adaptive_paths:
+  high_value:
+    - /
+
+behavior_signals:
+  - "+PONG response = Redis unauthenticated access"
+  - "-NOAUTH = Redis is running but requires password"
+  - "redis_version in response = INFO command executed"
+
+risk_patterns:
+  - "No auth Redis = read all sessions, keys, cached data"
+  - "CONFIG SET dir + CONFIG SET dbfilename = filesystem write → RCE"
+  - "SLAVEOF command = data exfiltration to attacker server"
+
+stealth_notes:
+  - "Single probe only — Redis logs every command"
+  - "HTTP-based probe is safer than TCP RESP protocol"
+  - "Port 6379 primary, 6380 secondary (TLS), 16379 (cluster bus)"
+
+chain_with:
+  - laravel
+  - django
+  - nextjs

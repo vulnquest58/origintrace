@@ -1,0 +1,111 @@
+# VulnOrigin-Operator :: Nginx Web Server Rules
+# ================================================
+# Nginx detection and security-relevant endpoint mapping.
+# Focuses on misconfigurations common in origin servers.
+
+name: nginx
+category: web_server
+priority: MEDIUM
+
+detection:
+  headers:
+    - name: "Server"
+      pattern: "nginx"
+      confidence: 95
+    - name: "Server"
+      pattern: "openresty"
+      confidence: 90
+
+  body_patterns:
+    - pattern: "nginx"
+      confidence: 70
+    - pattern: "Welcome to nginx"
+      confidence: 99
+
+probes:
+  # ── Status & Diagnostics ──────────────────────────────
+  - path: "/nginx_status"
+    method: GET
+    risk: HIGH
+    description: "Nginx stub_status (active connections, request rate)"
+    tags: [disclosure, metrics]
+
+  - path: "/status"
+    method: GET
+    risk: MEDIUM
+    description: "Generic status endpoint"
+    tags: [disclosure, metrics]
+
+  # ── Common Nginx Misconfigurations ─────────────────────
+  - path: "/..;/"
+    method: GET
+    risk: HIGH
+    description: "Nginx path traversal (CVE-2021-23017 class)"
+    tags: [traversal, bypass]
+
+  - path: "/%2e%2e/"
+    method: GET
+    risk: HIGH
+    description: "URL-encoded path traversal"
+    tags: [traversal, bypass]
+
+  - path: "/./admin/"
+    method: GET
+    risk: MEDIUM
+    description: "Path normalization bypass attempt"
+    tags: [bypass]
+
+  # ── Sensitive Files ────────────────────────────────────
+  - path: "/.git/HEAD"
+    method: GET
+    risk: CRITICAL
+    description: "Git repository exposed (source code disclosure)"
+    tags: [disclosure, git]
+
+  - path: "/.git/config"
+    method: GET
+    risk: CRITICAL
+    description: "Git config (remote URLs, credentials)"
+    tags: [disclosure, git, credential]
+
+  - path: "/.svn/entries"
+    method: GET
+    risk: CRITICAL
+    description: "SVN repository exposed"
+    tags: [disclosure, svn]
+
+  - path: "/.htaccess"
+    method: GET
+    risk: HIGH
+    description: "Apache .htaccess served by Nginx (config disclosure)"
+    tags: [disclosure, config]
+
+  - path: "/nginx.conf"
+    method: GET
+    risk: CRITICAL
+    description: "Nginx config file served as static content"
+    tags: [disclosure, config]
+
+  # ── Backup and temp files ──────────────────────────────
+  - path: "/index.php.bak"
+    method: GET
+    risk: HIGH
+    description: "PHP backup file (source code)"
+    tags: [disclosure, backup]
+
+  - path: "/config.php.bak"
+    method: GET
+    risk: CRITICAL
+    description: "Config backup (credentials)"
+    tags: [disclosure, backup, credential]
+
+  - path: "/web.config"
+    method: GET
+    risk: HIGH
+    description: "ASP.NET config (may be present on mixed stacks)"
+    tags: [disclosure, config]
+
+validation:
+  path: "/"
+  server_header_contains: "nginx"
+  false_positive_check: false

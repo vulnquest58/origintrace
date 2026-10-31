@@ -1,0 +1,118 @@
+# Prometheus Metrics Server — Internal Data Exposure
+# ====================================================
+# Risk: Infrastructure topology, credentials in metrics labels,
+#       internal service discovery via /targets endpoint
+# Research: ~40% of Prometheus instances have no auth (2025 Shodan data)
+
+name: prometheus
+category: Monitoring
+version: "1.0.0"
+
+priority: HIGH
+stealth_level: low
+stop_if_detected: false
+
+detection:
+  headers:
+    - name: "Content-Type"
+      pattern: "text/plain.*version=0\\.0\\.4"
+      confidence: 99
+  body_patterns:
+    - pattern: "# HELP go_gc_duration_seconds"
+      confidence: 99
+    - pattern: "prometheus_build_info"
+      confidence: 99
+    - pattern: "# TYPE"
+      confidence: 50
+
+safe_probes:
+  - path: "/metrics"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Prometheus metrics endpoint — if 200 without auth, exposes:
+      internal hostnames, IP addresses, service versions,
+      database connection counts, error rates, and sometimes
+      credential strings in metric labels.
+    tags: [metrics, unauth, info-disclosure]
+
+  - path: "/api/v1/targets"
+    method: GET
+    expected_status: [200, 401]
+    risk: CRITICAL
+    description: >
+      Prometheus scrape targets — CRITICAL for recon: lists every
+      service being monitored with its internal URL, IP, port, and
+      labels. Full infrastructure map without a single port scan.
+    tags: [targets, infrastructure-map, critical]
+
+  - path: "/api/v1/query?query=up"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Prometheus query API — executes PromQL queries.
+      "up" query returns all monitored services and their health.
+    tags: [query, api, recon]
+
+  - path: "/api/v1/label/__address__/values"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Internal IP/hostname enumeration via label values.
+      Returns all scraped target addresses.
+    tags: [enumeration, internal-ips]
+
+  - path: "/graph"
+    method: GET
+    expected_status: [200, 401]
+    risk: MEDIUM
+    description: Prometheus web UI — confirms web interface is enabled.
+    tags: [ui, detection]
+
+  - path: "/-/healthy"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: Prometheus health check — version in response body.
+    tags: [detection, version]
+
+  - path: "/api/v1/alertmanagers"
+    method: GET
+    expected_status: [200, 401]
+    risk: MEDIUM
+    description: >
+      AlertManager URLs — reveals internal notification endpoints
+      (Slack webhooks, PagerDuty keys, email configs).
+    tags: [alertmanager, credentials]
+
+adaptive_paths:
+  high_value:
+    - /metrics
+    - /api/v1/targets
+    - /api/v1/query
+  medium_confidence:
+    - /graph
+    - /-/healthy
+
+behavior_signals:
+  - "text/plain with # HELP lines = Prometheus metrics exposed"
+  - "200 on /api/v1/targets = full infrastructure map"
+  - "Labels containing 'password' or 'token' = credential leak"
+
+risk_patterns:
+  - "Infrastructure topology from scrape targets"
+  - "Internal service discovery without network scan"
+  - "Credential extraction from metric labels"
+
+stealth_notes:
+  - "Read-only GET probes only"
+  - "Avoid heavy PromQL queries that spike CPU"
+  - "One request per endpoint, no loops"
+
+chain_with:
+  - grafana
+  - kubernetes_api
+  - docker_api

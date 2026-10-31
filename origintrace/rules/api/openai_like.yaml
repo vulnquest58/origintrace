@@ -1,0 +1,63 @@
+service: openai_like_api
+description: "LLM/AI API endpoints — unauthorized access = data extraction + abuse"
+version: "1.0.0"
+risk_base: CRITICAL
+
+detection:
+  paths:
+    - /v1/chat/completions
+    - /v1/completions
+    - /v1/models
+    - /v1/embeddings
+    - /api/chat
+    - /api/generate
+  headers:
+    server_patterns:
+      - "uvicorn"
+      - "gunicorn"
+      - "fastapi"
+
+safe_probes:
+  - path: /v1/models
+    method: GET
+    expected_status: [200, 401, 403]
+    risk: HIGH
+    description: "LLM model list endpoint — public = no auth required"
+
+  - path: /v1/chat/completions
+    method: POST
+    body: '{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"hi"}]}'
+    headers:
+      Content-Type: application/json
+    expected_status: [200, 400, 401, 403]
+    risk: CRITICAL
+    description: "LLM inference endpoint — unauthenticated access = free API abuse + data extraction"
+
+  - path: /v1/completions
+    method: POST
+    body: '{"model":"text-davinci-003","prompt":"test","max_tokens":1}'
+    headers:
+      Content-Type: application/json
+    expected_status: [200, 400, 401]
+    risk: CRITICAL
+    description: "OpenAI-compatible completions — no auth = unlimited inference abuse"
+
+  - path: /openai/v1/chat/completions
+    method: GET
+    expected_status: [200, 405, 401]
+    risk: HIGH
+    description: "Azure OpenAI proxy endpoint pattern"
+
+adaptive_paths:
+  - /v1/admin
+  - /v1/fine-tunes
+  - /v1/files
+  - /v1/usage
+  - /admin/models
+  - /api/v1/chat
+  - /api/v1/models
+  - /ollama/api/tags
+  - /api/tags
+
+attack_chain: "No-auth LLM API → POST /v1/chat/completions → free inference + data extraction + model fingerprinting"
+mitre: "TA0009 Collection, T1530 Data from Cloud Storage"

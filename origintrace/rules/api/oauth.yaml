@@ -1,0 +1,64 @@
+service: oauth_provider
+description: "OAuth 2.0 / OpenID Connect misconfigurations"
+version: "1.0.0"
+risk_base: HIGH
+
+detection:
+  paths:
+    - /oauth/
+    - /oauth2/
+    - /.well-known/openid-configuration
+    - /auth/realms/
+  headers:
+    response_patterns:
+      - "issuer"
+      - "authorization_endpoint"
+      - "token_endpoint"
+
+safe_probes:
+  - path: /.well-known/openid-configuration
+    method: GET
+    expected_status: [200]
+    risk: MEDIUM
+    description: "OpenID Connect discovery — reveals all endpoints + supported flows"
+
+  - path: /oauth/authorize?response_type=code&client_id=test&redirect_uri=https://attacker.com
+    method: GET
+    expected_status: [200, 302, 400]
+    risk: HIGH
+    description: "OAuth open redirect test — 302 to attacker.com = auth code theft"
+
+  - path: /oauth/token
+    method: POST
+    body: "grant_type=client_credentials&client_id=test&client_secret=test"
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    expected_status: [200, 400, 401]
+    risk: HIGH
+    description: "Token endpoint with weak credentials — brute-force surface"
+
+  - path: /oauth/authorize?response_type=token&client_id=mobile&redirect_uri=http://localhost
+    method: GET
+    expected_status: [200, 302]
+    risk: HIGH
+    description: "Implicit flow test — token in URL fragment leaks via Referer"
+
+  - path: /.well-known/jwks.json
+    method: GET
+    expected_status: [200, 403]
+    risk: MEDIUM
+    description: "JWKS endpoint — public keys for JWT verification"
+
+adaptive_paths:
+  - /oauth/authorize
+  - /oauth/token
+  - /oauth2/authorize
+  - /oauth2/token
+  - /auth/oauth/token
+  - /connect/token
+  - /auth/token
+  - /api/oauth/token
+  - /.well-known/oauth-authorization-server
+
+attack_chain: "Open redirect in redirect_uri → steal auth code → exchange for token → account takeover"
+mitre: "TA0006 Credential Access, T1550.001 Application Access Token"

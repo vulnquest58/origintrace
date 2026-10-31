@@ -1,0 +1,122 @@
+# Elasticsearch — Unprotected Search Engine / Database
+# ======================================================
+# Risk: Full data read/write, index deletion, credential extraction
+# CVE-2023-31419: Denial of service via stack overflow
+# CVE-2021-22145: Memory disclosure in error responses
+# Research: ~30k open ES instances indexed on Shodan (2025)
+
+name: elasticsearch
+category: Database
+version: "1.0.0"
+
+priority: CRITICAL
+stealth_level: low
+stop_if_detected: false
+
+detection:
+  headers:
+    - name: "X-Elastic-Product"
+      pattern: "Elasticsearch"
+      confidence: 99
+    - name: "Content-Type"
+      pattern: "application/json"
+      confidence: 20
+  body_patterns:
+    - pattern: "\"cluster_name\""
+      confidence: 95
+    - pattern: "\"tagline\" : \"You Know, for Search\""
+      confidence: 99
+    - pattern: "elasticsearch"
+      confidence: 60
+
+safe_probes:
+  - path: "/"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      ES root endpoint — if 200 without auth, cluster name, version,
+      and tagline exposed. "You Know, for Search" = confirmed.
+    tags: [detection, version, unauth]
+
+  - path: "/_cat/indices?v"
+    method: GET
+    expected_status: [200, 401]
+    risk: CRITICAL
+    description: >
+      Index listing — CRITICAL: reveals all stored indices with
+      document counts and sizes. Gateway to targeted data extraction.
+    tags: [indices, critical, unauth]
+
+  - path: "/_cat/nodes?v"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Node listing — reveals cluster topology, node IPs, roles,
+      and heap usage. Maps the full ES cluster.
+    tags: [nodes, infrastructure]
+
+  - path: "/_cluster/settings"
+    method: GET
+    expected_status: [200, 401]
+    risk: HIGH
+    description: >
+      Cluster settings — may reveal network configs, security
+      settings, and plugin configurations.
+    tags: [settings, recon]
+
+  - path: "/_security/user"
+    method: GET
+    expected_status: [200, 401, 403]
+    risk: CRITICAL
+    description: >
+      ES security user list — if 200, lists all users, roles,
+      and API keys. Confirms Security plugin is disabled if 404.
+    tags: [users, credentials, critical]
+
+  - path: "/_xpack"
+    method: GET
+    expected_status: [200, 401, 404]
+    risk: MEDIUM
+    description: >
+      X-Pack features endpoint — reveals security, monitoring,
+      watcher, and ML plugin status.
+    tags: [xpack, features, version]
+
+  - path: "/_search?q=password"
+    method: GET
+    expected_status: [200, 401]
+    risk: CRITICAL
+    description: >
+      Global search for "password" across ALL indices.
+      If unauth, may return stored credentials from log indices.
+    tags: [credential-search, critical]
+
+adaptive_paths:
+  high_value:
+    - /_cat/indices
+    - /_security/user
+    - /_search
+  medium_confidence:
+    - /_cluster/
+    - /_nodes/
+
+behavior_signals:
+  - "JSON with cluster_name = ES confirmed"
+  - "200 on /_cat/indices = full data access"
+  - "404 on /_xpack = old ES version (pre-6.x, no security)"
+
+risk_patterns:
+  - "Unauth ES = read/write/delete all data"
+  - "Log indices often contain auth tokens and passwords"
+  - "ES _search on 'password' = instant credential harvest"
+
+stealth_notes:
+  - "/_search?q=password is high-value but logs in ES audit"
+  - "Start with / and /_cat/indices — lowest risk, highest info"
+  - "Port 9200 = HTTP, 9300 = TCP transport (cluster comms)"
+
+chain_with:
+  - kibana
+  - logstash

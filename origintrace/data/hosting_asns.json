@@ -1,0 +1,395 @@
+{
+    "metadata": {
+        "version": "2.0.0",
+        "last_updated": "2026-06-11",
+        "description": "Comprehensive hosting provider ASN database for origin classification",
+        "usage": "Used by ASNClassifier and AdvancedCDNDetector to identify hosting providers from IP addresses",
+        "total_providers": 35,
+        "total_asns": 120
+    },
+
+    "amazon_aws": {
+        "name": "Amazon Web Services",
+        "type": "cloud",
+        "asns": [16509, 14618, 7224, 8987, 38895],
+        "description": "Amazon Web Services - Global cloud computing platform",
+        "website": "https://aws.amazon.com",
+        "ranges_source": "https://ip-ranges.amazonaws.com/ip-ranges.json",
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "google_cloud": {
+        "name": "Google Cloud Platform",
+        "type": "cloud",
+        "asns": [15169, 396982, 19527],
+        "description": "Google Cloud Platform - Cloud computing services",
+        "website": "https://cloud.google.com",
+        "ranges_source": "https://www.gstatic.com/ipranges/cloud.json",
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "microsoft_azure": {
+        "name": "Microsoft Azure",
+        "type": "cloud",
+        "asns": [8075, 12076, 8069, 8070, 8071, 8072, 8073, 8074],
+        "description": "Microsoft Azure - Cloud computing platform",
+        "website": "https://azure.microsoft.com",
+        "ranges_source": "https://www.microsoft.com/en-us/download/details.aspx?id=56519",
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "oracle_cloud": {
+        "name": "Oracle Cloud Infrastructure",
+        "type": "cloud",
+        "asns": [31898, 1215, 400558],
+        "description": "Oracle Cloud Infrastructure (OCI)",
+        "website": "https://www.oracle.com/cloud",
+        "ranges_source": "https://docs.oracle.com/en-us/iaas/tools/public_ip_ranges.json",
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "ibm_cloud": {
+        "name": "IBM Cloud",
+        "type": "cloud",
+        "asns": [36351, 16807, 8422],
+        "description": "IBM Cloud - Enterprise cloud platform",
+        "website": "https://www.ibm.com/cloud",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "alibaba_cloud": {
+        "name": "Alibaba Cloud",
+        "type": "cloud",
+        "asns": [45102, 37963, 134963],
+        "description": "Alibaba Cloud (Aliyun) - Leading cloud provider in Asia",
+        "website": "https://www.alibabacloud.com",
+        "ranges_source": null,
+        "regions": ["asia", "global"],
+        "confidence": "high"
+    },
+
+    "tencent_cloud": {
+        "name": "Tencent Cloud",
+        "type": "cloud",
+        "asns": [132203, 45090],
+        "description": "Tencent Cloud - Cloud services provider",
+        "website": "https://cloud.tencent.com",
+        "ranges_source": null,
+        "regions": ["asia", "global"],
+        "confidence": "high"
+    },
+
+    "huawei_cloud": {
+        "name": "Huawei Cloud",
+        "type": "cloud",
+        "asns": [55990, 136907],
+        "description": "Huawei Cloud - Cloud computing services",
+        "website": "https://www.huaweicloud.com",
+        "ranges_source": null,
+        "regions": ["asia", "global"],
+        "confidence": "high"
+    },
+
+    "digitalocean": {
+        "name": "DigitalOcean",
+        "type": "cloud",
+        "asns": [14061, 393406],
+        "description": "DigitalOcean - Cloud infrastructure provider",
+        "website": "https://www.digitalocean.com",
+        "ranges_source": "https://www.digitalocean.com/geo/google.csv",
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "linode": {
+        "name": "Akamai/Linode",
+        "type": "cloud",
+        "asns": [63949, 6939, 20940],
+        "description": "Linode (now part of Akamai) - Cloud hosting",
+        "website": "https://www.linode.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "vultr": {
+        "name": "Vultr",
+        "type": "cloud",
+        "asns": [20473, 64515, 53667],
+        "description": "Vultr Holdings LLC (Choopa) - Cloud hosting",
+        "website": "https://www.vultr.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "hetzner": {
+        "name": "Hetzner Online",
+        "type": "hosting",
+        "asns": [24940, 213230],
+        "description": "Hetzner Online GmbH - German hosting provider",
+        "website": "https://www.hetzner.com",
+        "ranges_source": null,
+        "regions": ["europe"],
+        "confidence": "high"
+    },
+
+    "ovh": {
+        "name": "OVHcloud",
+        "type": "hosting",
+        "asns": [16276, 35540],
+        "description": "OVH SAS / OVHcloud - French hosting provider",
+        "website": "https://www.ovhcloud.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "scaleway": {
+        "name": "Scaleway",
+        "type": "cloud",
+        "asns": [12876, 199574],
+        "description": "Scaleway SAS (Iliad) - French cloud provider",
+        "website": "https://www.scaleway.com",
+        "ranges_source": null,
+        "regions": ["europe"],
+        "confidence": "high"
+    },
+
+    "rackspace": {
+        "name": "Rackspace Technology",
+        "type": "hosting",
+        "asns": [27357, 10532, 33070],
+        "description": "Rackspace Technology - Managed cloud services",
+        "website": "https://www.rackspace.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "hostinger": {
+        "name": "Hostinger International",
+        "type": "hosting",
+        "asns": [47583, 204291],
+        "description": "Hostinger International - Web hosting provider",
+        "website": "https://www.hostinger.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "contabo": {
+        "name": "Contabo",
+        "type": "hosting",
+        "asns": [51167],
+        "description": "Contabo GmbH - German VPS provider",
+        "website": "https://contabo.com",
+        "ranges_source": null,
+        "regions": ["europe"],
+        "confidence": "high"
+    },
+
+    "ionos": {
+        "name": "IONOS (1&1)",
+        "type": "hosting",
+        "asns": [8560, 13184],
+        "description": "IONOS SE (formerly 1&1) - Web hosting",
+        "website": "https://www.ionos.com",
+        "ranges_source": null,
+        "regions": ["europe", "global"],
+        "confidence": "high"
+    },
+
+    "godaddy": {
+        "name": "GoDaddy",
+        "type": "hosting",
+        "asns": [26496, 398101],
+        "description": "GoDaddy - Domain registrar and hosting",
+        "website": "https://www.godaddy.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "bluehost": {
+        "name": "Bluehost",
+        "type": "hosting",
+        "asns": [46606],
+        "description": "Bluehost - Web hosting provider",
+        "website": "https://www.bluehost.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "siteground": {
+        "name": "SiteGround",
+        "type": "hosting",
+        "asns": [203020],
+        "description": "SiteGround - Web hosting services",
+        "website": "https://www.siteground.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "namecheap": {
+        "name": "Namecheap",
+        "type": "hosting",
+        "asns": [22612, 397423],
+        "description": "Namecheap - Domain registrar and hosting",
+        "website": "https://www.namecheap.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "dreamhost": {
+        "name": "DreamHost",
+        "type": "hosting",
+        "asns": [26347],
+        "description": "DreamHost - Web hosting provider",
+        "website": "https://www.dreamhost.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "a2hosting": {
+        "name": "A2 Hosting",
+        "type": "hosting",
+        "asns": [36352],
+        "description": "A2 Hosting - Web hosting services",
+        "website": "https://www.a2hosting.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "inmotion": {
+        "name": "InMotion Hosting",
+        "type": "hosting",
+        "asns": [33070],
+        "description": "InMotion Hosting - Web hosting provider",
+        "website": "https://www.inmotionhosting.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "leaseweb": {
+        "name": "LeaseWeb",
+        "type": "hosting",
+        "asns": [60781, 6461],
+        "description": "LeaseWeb - Global hosting provider",
+        "website": "https://www.leaseweb.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "serverius": {
+        "name": "Serverius",
+        "type": "hosting",
+        "asns": [50673],
+        "description": "Serverius - Dutch hosting provider",
+        "website": "https://www.serverius.net",
+        "ranges_source": null,
+        "regions": ["europe"],
+        "confidence": "high"
+    },
+
+    "choopa": {
+        "name": "Choopa (Vultr)",
+        "type": "hosting",
+        "asns": [20473],
+        "description": "Choopa LLC - Parent company of Vultr",
+        "website": "https://www.choopa.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "high"
+    },
+
+    "ramnode": {
+        "name": "RamNode",
+        "type": "hosting",
+        "asns": [53667],
+        "description": "RamNode - VPS hosting provider",
+        "website": "https://www.ramnode.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "medium"
+    },
+
+    "buyvm": {
+        "name": "BuyVM (Frantech)",
+        "type": "hosting",
+        "asns": [53755],
+        "description": "BuyVM / Frantech Solutions - VPS hosting",
+        "website": "https://buyvm.net",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "medium"
+    },
+
+    "bandwagonhost": {
+        "name": "BandwagonHost",
+        "type": "hosting",
+        "asns": [40065],
+        "description": "BandwagonHost - VPS hosting provider",
+        "website": "https://bandwagonhost.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "medium"
+    },
+
+    "kimsufi": {
+        "name": "Kimsufi (OVH)",
+        "type": "hosting",
+        "asns": [16276],
+        "description": "Kimsufi - Budget dedicated servers by OVH",
+        "website": "https://www.kimsufi.com",
+        "ranges_source": null,
+        "regions": ["europe"],
+        "confidence": "medium"
+    },
+
+    "soyoustart": {
+        "name": "SoYouStart (OVH)",
+        "type": "hosting",
+        "asns": [16276],
+        "description": "SoYouStart - Budget dedicated servers by OVH",
+        "website": "https://www.soyoustart.com",
+        "ranges_source": null,
+        "regions": ["europe"],
+        "confidence": "medium"
+    },
+
+    "epik": {
+        "name": "Epik",
+        "type": "hosting",
+        "asns": [397086],
+        "description": "Epik - Domain registrar and hosting",
+        "website": "https://www.epik.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "medium"
+    },
+
+    "porkbun": {
+        "name": "Porkbun",
+        "type": "hosting",
+        "asns": [397273],
+        "description": "Porkbun - Domain registrar",
+        "website": "https://porkbun.com",
+        "ranges_source": null,
+        "regions": ["global"],
+        "confidence": "medium"
+    }
+}

@@ -1,0 +1,134 @@
+# VulnOrigin-Operator — Cloudflare Origin Bypass Rule
+# =====================================================
+# Targets: Cloudflare-protected origins
+# 2026 research:
+#   - CF-RAY header leaks → origin fingerprint
+#   - /cdn-cgi/trace → exposes real origin IP in some configs
+#   - Host header bypass when origin trusts ALL Host values
+#   - Cloudflare Tunnel misconfig → internal service exposure
+#
+# Strategy: passive detection → targeted bypass → minimal footprint
+
+name: cloudflare_origin_bypass
+category: Cloud
+version: "1.0.0"
+
+priority: CRITICAL
+stealth_level: ultra_low
+stop_if_detected: true
+
+detection:
+  headers:
+    - name: "CF-RAY"
+      pattern: ".*"
+      confidence: 99
+    - name: "CF-Cache-Status"
+      pattern: ".*"
+      confidence: 95
+    - name: "Server"
+      pattern: "cloudflare"
+      confidence: 99
+    - name: "CF-Connecting-IP"
+      pattern: ".*"
+      confidence: 90
+  body_patterns:
+    - pattern: "Attention Required! | Cloudflare"
+      confidence: 80
+    - pattern: "cdn-cgi"
+      confidence: 70
+
+safe_probes:
+  # Debug endpoint: reveals Cloudflare config + sometimes origin IP
+  - path: "/cdn-cgi/trace"
+    method: GET
+    expected_status: [200]
+    risk: HIGH
+    description: >
+      Cloudflare debug endpoint — reveals IP address, colo, warp status,
+      HTTP version, and request origin details.
+      "ip=" field shows the client IP Cloudflare uses for this connection.
+      When accessed directly on origin (bypassing CF), reveals origin context.
+    tags: [recon, debug, info-disclosure]
+
+  # Host header bypass — origin may trust any Host value
+  - path: "/"
+    method: GET
+    headers:
+      Host: "localhost"
+    risk: HIGH
+    description: >
+      Host header bypass probe — origin may not validate Host header.
+      If response differs from normal, origin processes requests
+      without Host verification → WAF bypass possible.
+    tags: [host-header, bypass, waf-bypass]
+
+  - path: "/"
+    method: GET
+    headers:
+      X-Forwarded-For: "127.0.0.1"
+      X-Real-IP: "127.0.0.1"
+      CF-Connecting-IP: "127.0.0.1"
+    risk: HIGH
+    description: >
+      IP spoofing via Cloudflare-trusted headers.
+      Some origins grant privileged access to requests appearing
+      from localhost/internal IPs when CF headers are trusted unconditionally.
+    tags: [ip-spoof, privilege-escalation]
+
+  # /cdn-cgi/login — Cloudflare Access bypass
+  - path: "/cdn-cgi/login/"
+    method: GET
+    expected_status: [200, 302, 401, 403]
+    risk: MEDIUM
+    description: >
+      Cloudflare Access login endpoint — confirms CF Access is protecting
+      this origin. Tests for misconfigurations that allow direct access.
+    tags: [cloudflare-access, auth]
+
+  # Firewall rules bypass via path normalization
+  - path: "/admin/..%2F..%2F"
+    method: GET
+    risk: MEDIUM
+    description: >
+      Path normalization bypass — some Cloudflare WAF rules match
+      exact paths but miss encoded variants.
+    tags: [waf-bypass, path-traversal]
+
+  # Email worker leakage (Cloudflare Email Routing)
+  - path: "/.well-known/mta-sts.txt"
+    method: GET
+    expected_status: [200]
+    risk: LOW
+    description: >
+      MTA-STS policy — confirms Cloudflare Email Routing usage.
+      Reveals email routing configuration and SPF enforcement.
+    tags: [email, recon]
+
+adaptive_paths:
+  high_value:
+    - /cdn-cgi/trace
+    - /cdn-cgi/login/
+    - /.well-known/
+
+behavior_signals:
+  - "CF-RAY header present on origin IP = CF proxy is active"
+  - "No CF-RAY on origin IP = direct access bypasses CF"
+  - "Different status codes: origin vs domain = WAF bypass surface"
+  - "Origin returns 200 for paths CF blocks = trust gap"
+
+risk_patterns:
+  - "CDN bypass → WAF removal → full attack surface"
+  - "IP spoof via trusted headers → privilege escalation"
+  - "Host header confusion → routing to internal backend"
+
+stealth_notes:
+  - "Use ultra-low rate: CF bot scores accumulate across IPs"
+  - "Vary User-Agent between probes to avoid bot fingerprint"
+  - "Stop immediately if 403 with CF challenge page (JS challenge)"
+  - "One probe per 5 seconds minimum on origin"
+
+chain_with:
+  - nginx
+  - apache
+  - nextjs
+  - laravel

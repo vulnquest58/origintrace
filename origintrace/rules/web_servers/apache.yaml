@@ -1,0 +1,149 @@
+# VulnOrigin-Operator :: Apache Web Server Rules
+# ================================================
+# Apache httpd detection and security-relevant endpoint mapping.
+
+name: apache
+category: web_server
+priority: MEDIUM
+
+detection:
+  headers:
+    - name: "Server"
+      pattern: "Apache"
+      confidence: 95
+    - name: "Server"
+      pattern: "httpd"
+      confidence: 80
+
+  body_patterns:
+    - pattern: "Apache/2"
+      confidence: 90
+    - pattern: "It works!"
+      confidence: 85
+    - pattern: "Apache HTTP Server"
+      confidence: 90
+
+probes:
+  # ── Server Status & Info ──────────────────────────────
+  - path: "/server-status"
+    method: GET
+    risk: CRITICAL
+    description: "Apache mod_status (real IPs, active requests, vhosts)"
+    tags: [disclosure, metrics, recon]
+
+  - path: "/server-info"
+    method: GET
+    risk: HIGH
+    description: "Apache mod_info (configuration, loaded modules)"
+    tags: [disclosure, config]
+
+  # ── Common Apache Misconfigs ───────────────────────────
+  - path: "/.htaccess"
+    method: GET
+    risk: HIGH
+    description: "Apache .htaccess file exposed"
+    tags: [disclosure, config]
+
+  - path: "/.htpasswd"
+    method: GET
+    risk: CRITICAL
+    description: "Apache htpasswd file (hashed credentials)"
+    tags: [disclosure, credential]
+
+  - path: "/cgi-bin/"
+    method: GET
+    risk: HIGH
+    description: "CGI-bin directory listing (ShellShock, RCE history)"
+    tags: [cgi, rce]
+
+  - path: "/cgi-bin/test-cgi"
+    method: GET
+    risk: HIGH
+    description: "CGI test script"
+    tags: [cgi, disclosure]
+
+  # ── Version-Specific ──────────────────────────────────
+  - path: "/icons/apache_pb.gif"
+    method: GET
+    risk: LOW
+    description: "Apache default powered-by icon (version fingerprint)"
+    tags: [disclosure, version]
+
+  - path: "/manual/"
+    method: GET
+    risk: LOW
+    description: "Apache manual accessible (version disclosure)"
+    tags: [disclosure, version]
+
+  # ── PHP on Apache ─────────────────────────────────────
+  - path: "/phpinfo.php"
+    method: GET
+    risk: CRITICAL
+    description: "phpinfo() output (full server config, env vars)"
+    tags: [disclosure, php, credential]
+
+  - path: "/info.php"
+    method: GET
+    risk: CRITICAL
+    description: "phpinfo() alias"
+    tags: [disclosure, php]
+
+  - path: "/test.php"
+    method: GET
+    risk: MEDIUM
+    description: "PHP test file"
+    tags: [disclosure, php]
+
+  - path: "/phpmyadmin/"
+    method: GET
+    risk: CRITICAL
+    description: "phpMyAdmin panel"
+    tags: [admin, panel, database]
+
+  - path: "/phpmyadmin/index.php"
+    method: GET
+    risk: CRITICAL
+    description: "phpMyAdmin login"
+    tags: [admin, auth, database]
+
+  # ── Common Sensitive Files ────────────────────────────
+  - path: "/.git/HEAD"
+    method: GET
+    risk: CRITICAL
+    description: "Git repository exposed"
+    tags: [disclosure, git]
+
+  - path: "/wp-config.php"
+    method: GET
+    risk: CRITICAL
+    description: "WordPress config (DB credentials)"
+    tags: [disclosure, credential, cms]
+
+  - path: "/config.php"
+    method: GET
+    risk: HIGH
+    description: "Generic PHP config file"
+    tags: [disclosure, credential]
+
+  - path: "/web.config"
+    method: GET
+    risk: HIGH
+    description: "IIS web config"
+    tags: [disclosure, config]
+
+  - path: "/error_log"
+    method: GET
+    risk: HIGH
+    description: "Apache error log (path disclosure, stack traces)"
+    tags: [disclosure, debug]
+
+  - path: "/access_log"
+    method: GET
+    risk: MEDIUM
+    description: "Apache access log"
+    tags: [disclosure]
+
+validation:
+  path: "/"
+  server_header_contains: "Apache"
+  false_positive_check: false

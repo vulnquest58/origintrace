@@ -1,0 +1,103 @@
+# VulnOrigin-Operator :: Django Detection Rules
+# ===============================================
+# Django framework detection and security-relevant endpoint mapping.
+
+name: django
+category: framework
+priority: MEDIUM
+
+detection:
+  headers:
+    - name: "Server"
+      pattern: "WSGIServer|gunicorn|uvicorn|daphne"
+      confidence: 50
+    - name: "X-Frame-Options"
+      pattern: "SAMEORIGIN"
+      confidence: 30
+    - name: "Content-Security-Policy"
+      pattern: "django"
+      confidence: 40
+
+  cookies:
+    - name: "csrftoken"
+      confidence: 90
+    - name: "sessionid"
+      confidence: 60
+
+  body_patterns:
+    - pattern: "CSRF verification failed"
+      confidence: 95
+    - pattern: "django.core"
+      confidence: 90
+    - pattern: "Traceback (most recent call last)"
+      confidence: 50
+    - pattern: "__admin__"
+      confidence: 70
+
+  paths:
+    - path: "/admin/"
+      expected_status: [200, 302]
+      confidence_boost: 60
+    - path: "/admin/login/"
+      expected_status: [200]
+      confidence_boost: 70
+
+probes:
+  - path: "/admin/"
+    method: GET
+    risk: HIGH
+    description: "Django admin panel"
+    tags: [admin, panel, auth]
+
+  - path: "/admin/login/"
+    method: GET
+    risk: HIGH
+    description: "Django admin login"
+    tags: [admin, auth]
+
+  - path: "/__debug__/"
+    method: GET
+    risk: CRITICAL
+    description: "Django Debug Toolbar (dev mode leaked to production)"
+    tags: [debug, disclosure]
+
+  - path: "/api/"
+    method: GET
+    risk: MEDIUM
+    description: "Django REST Framework browsable API"
+    tags: [api]
+
+  - path: "/api/v1/"
+    method: GET
+    risk: MEDIUM
+    description: "Django REST API v1"
+    tags: [api]
+
+  - path: "/.env"
+    method: GET
+    risk: CRITICAL
+    description: "Environment file (SECRET_KEY, DB credentials)"
+    tags: [config, credential]
+
+  - path: "/static/admin/css/base.css"
+    method: GET
+    risk: LOW
+    description: "Django admin static (confirms Django version)"
+    tags: [disclosure, version]
+
+  - path: "/api/schema/"
+    method: GET
+    risk: MEDIUM
+    description: "DRF OpenAPI schema disclosure"
+    tags: [api, disclosure]
+
+  - path: "/api/docs/"
+    method: GET
+    risk: MEDIUM
+    description: "DRF Swagger/ReDoc documentation"
+    tags: [api, disclosure]
+
+validation:
+  path: "/admin/"
+  expected_response_contains: "django"
+  false_positive_check: true

@@ -1,0 +1,140 @@
+# GraphQL API — Introspection & Logic Abuse
+# ===========================================
+# Risk: Full API schema exposure → IDOR, mass assignment, auth bypass
+# Research 2026: GraphQL introspection top-5 HackerOne finding category
+# CVE-2023-26144: GraphQL batching DoS
+# Technique: introspection → mutation enumeration → IDOR chains
+
+name: graphql
+category: Framework
+version: "1.0.0"
+
+priority: HIGH
+stealth_level: low
+stop_if_detected: false
+
+detection:
+  body_patterns:
+    - pattern: "\"data\":"
+      confidence: 40
+    - pattern: "__typename"
+      confidence: 85
+    - pattern: "graphql"
+      confidence: 70
+    - pattern: "\"errors\":[{\"message\""
+      confidence: 75
+
+safe_probes:
+  - path: "/graphql"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: '{"query":"{ __schema { types { name } } }"}'
+    expected_status: [200, 400, 401, 403]
+    risk: HIGH
+    description: >
+      GraphQL introspection query — if 200, returns full schema:
+      all types, queries, mutations, subscriptions, and field names.
+      Attackers use this to map the entire API without documentation.
+    tags: [introspection, schema, api-map]
+
+  - path: "/graphql"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: '{"query":"{ __schema { mutationType { fields { name args { name type { name } } } } } }"}'
+    expected_status: [200, 400]
+    risk: CRITICAL
+    description: >
+      Mutation enumeration — lists all write operations with arguments.
+      Reveals: createUser, deleteRecord, updatePassword, transferFunds.
+      Each mutation without auth = potential IDOR or privilege escalation.
+    tags: [mutations, idor, critical]
+
+  - path: "/graphql"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: '{"query":"query { __type(name: \"User\") { fields { name type { name kind } } } }"}'
+    expected_status: [200, 400]
+    risk: HIGH
+    description: >
+      User type field enumeration — maps User object fields including
+      hidden/internal fields not shown in docs (role, isAdmin, password).
+    tags: [type-introspection, user-fields]
+
+  # Batching abuse probe
+  - path: "/graphql"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: '[{"query":"{ __typename }"},{"query":"{ __typename }"}]'
+    expected_status: [200, 400]
+    risk: MEDIUM
+    description: >
+      Batching support test — if array accepted, batching is enabled.
+      Allows rate-limit bypass: 1000 auth attempts in one HTTP request.
+    tags: [batching, rate-limit-bypass]
+
+  - path: "/api/graphql"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body: '{"query":"{ __typename }"}'
+    expected_status: [200, 404]
+    risk: MEDIUM
+    description: >
+      Alternative GraphQL path — common in API gateway setups.
+    tags: [alternative-path, detection]
+
+  - path: "/graphiql"
+    method: GET
+    expected_status: [200, 403, 404]
+    risk: HIGH
+    description: >
+      GraphiQL IDE — interactive browser-based GraphQL explorer.
+      If accessible in production, provides full schema exploration
+      and query execution interface without authentication.
+    tags: [graphiql, ide, debug]
+
+  - path: "/graphql"
+    method: GET
+    expected_status: [200, 400, 405]
+    risk: LOW
+    description: >
+      GraphQL GET probe — some implementations accept GET for queries.
+      Useful for cached CSRF or URL-based injection.
+    tags: [get-method, csrf]
+
+adaptive_paths:
+  high_value:
+    - /graphql
+    - /api/graphql
+    - /graphiql
+    - /query
+  medium_confidence:
+    - /v1/graphql
+    - /gql
+
+behavior_signals:
+  - "JSON response with 'data' or 'errors' = GraphQL"
+  - "introspection enabled = full API map for free"
+  - "Mutation without auth token = IDOR/privilege escalation"
+  - "Batching accepted = rate limit bypass for brute force"
+
+risk_patterns:
+  - "Introspection → mutation map → IDOR chain → account takeover"
+  - "Admin mutations without auth = privilege escalation"
+  - "Batch queries → rate limit bypass → credential stuffing"
+  - "Subscription endpoint → WebSocket SSRF"
+
+stealth_notes:
+  - "POST with {__typename} is minimal — just confirms GraphQL"
+  - "Full introspection query is logged — do once only"
+  - "Batching test: 2-item array, not 1000 — detect capability only"
+
+chain_with:
+  - nextjs
+  - fastapi
+  - django
+  - springboot

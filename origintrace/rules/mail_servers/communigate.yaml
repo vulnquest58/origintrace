@@ -1,0 +1,132 @@
+# VulnOrigin-Operator :: CommuniGate Pro Rules
+# ==============================================
+# CommuniGate Pro is a common mail server found on origin IPs
+# protected by CDN. Direct access to the web admin is a
+# frequent critical bug bounty finding.
+#
+# Default ports: 80/443 (webmail), 8010 (admin), 25/587/993 (mail)
+
+name: communigate
+category: mail_server
+priority: CRITICAL
+
+detection:
+  headers:
+    - name: "Server"
+      pattern: "CommuniGatePro"
+      confidence: 99
+    - name: "Server"
+      pattern: "CommuniGate"
+      confidence: 95
+    - name: "WWW-Authenticate"
+      pattern: "CommuniGate"
+      confidence: 90
+
+  body_patterns:
+    - pattern: "CommuniGate"
+      confidence: 90
+    - pattern: "communigate"
+      confidence: 85
+    - pattern: "Stalker"
+      confidence: 60
+    - pattern: "WebMail"
+      confidence: 30
+
+  paths:
+    - path: "/WebMail/"
+      expected_status: [200, 302]
+      confidence_boost: 80
+    - path: "/WebMail/Login.html"
+      expected_status: [200]
+      confidence_boost: 90
+
+probes:
+  # ── Administration Interface ──────────────────────────
+  - path: "/WebAdmin/"
+    method: GET
+    risk: CRITICAL
+    description: "CommuniGate Pro web admin panel (port 8010 on default)"
+    tags: [admin, panel, auth]
+
+  - path: ":8010/"
+    method: GET
+    risk: CRITICAL
+    description: "CommuniGate admin on port 8010"
+    tags: [admin, panel]
+
+  - path: "/WebAdmin/Account.html"
+    method: GET
+    risk: CRITICAL
+    description: "CommuniGate account management"
+    tags: [admin, user-enum]
+
+  - path: "/WebAdmin/Domain.html"
+    method: GET
+    risk: CRITICAL
+    description: "CommuniGate domain settings"
+    tags: [admin, config]
+
+  # ── WebMail Interface ─────────────────────────────────
+  - path: "/WebMail/"
+    method: GET
+    risk: HIGH
+    description: "CommuniGate WebMail login"
+    tags: [webmail, auth]
+
+  - path: "/WebMail/Login.html"
+    method: GET
+    risk: HIGH
+    description: "CommuniGate WebMail login page"
+    tags: [webmail, auth]
+
+  - path: "/WebMail/Index.html"
+    method: GET
+    risk: HIGH
+    description: "CommuniGate WebMail index"
+    tags: [webmail]
+
+  - path: "/Pronto/"
+    method: GET
+    risk: MEDIUM
+    description: "CommuniGate Pronto! AJAX webmail"
+    tags: [webmail, api]
+
+  # ── API / External Access ─────────────────────────────
+  - path: "/api/v1/"
+    method: GET
+    risk: HIGH
+    description: "CommuniGate REST API"
+    tags: [api]
+
+  - path: "/ximss/"
+    method: GET
+    risk: HIGH
+    description: "CommuniGate XIMSS API interface"
+    tags: [api]
+
+  # ── Version & Disclosure ──────────────────────────────
+  - path: "/version.txt"
+    method: GET
+    risk: LOW
+    description: "CommuniGate version file"
+    tags: [disclosure, version]
+
+  - path: "/robots.txt"
+    method: GET
+    risk: LOW
+    description: "robots.txt (may reveal hidden paths)"
+    tags: [disclosure, recon]
+
+validation:
+  path: "/WebMail/"
+  server_header_contains: "CommuniGate"
+  false_positive_check: false
+
+# Strategic note for OVS scoring:
+# CommuniGate Pro admin access via origin IP bypass is consistently
+# rated CRITICAL in bug bounty programs, as it allows:
+# - Email interception for all users (password reset takeover)
+# - Domain-wide account manipulation
+# - SMTP relay configuration changes
+strategic_value: CRITICAL
+ovs_weight_boost: 15

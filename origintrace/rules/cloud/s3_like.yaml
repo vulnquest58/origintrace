@@ -1,0 +1,67 @@
+service: cloud_storage
+description: "Cloud storage exposure — S3, GCS, Azure Blob, MinIO"
+version: "1.0.0"
+risk_base: CRITICAL
+
+detection:
+  paths:
+    - /.aws/
+    - /minio/
+    - /storage/
+  headers:
+    server_patterns:
+      - "AmazonS3"
+      - "MinIO"
+      - "Windows-Azure-Blob"
+  response_patterns:
+    - "ListBucketResult"
+    - "AccessDenied"
+    - "NoSuchBucket"
+    - "<?xml"
+
+safe_probes:
+  - path: /.aws/credentials
+    method: GET
+    expected_status: [200, 403, 404]
+    risk: CRITICAL
+    description: "AWS credentials file — HTTP 200 = full infrastructure takeover"
+
+  - path: /.aws/config
+    method: GET
+    expected_status: [200, 403, 404]
+    risk: CRITICAL
+    description: "AWS config file — region + profile info"
+
+  - path: /minio/health/live
+    method: GET
+    expected_status: [200, 403]
+    risk: HIGH
+    description: "MinIO health endpoint — confirms object storage presence"
+
+  - path: /?list-type=2
+    method: GET
+    expected_status: [200, 403]
+    risk: CRITICAL
+    description: "S3-compatible bucket listing — 200 = public read access"
+
+  - path: /
+    method: GET
+    headers:
+      Accept: "application/xml"
+    expected_status: [200]
+    response_must_contain: "ListBucketResult"
+    risk: CRITICAL
+    description: "Public S3 bucket listing — all objects enumerable"
+
+adaptive_paths:
+  - /.aws/credentials
+  - /.aws/config
+  - /s3/
+  - /bucket/
+  - /storage/
+  - /files/
+  - /backup/
+  - /uploads/
+
+attack_chain: "Public bucket → list objects → download backup files → extract secrets/DBs"
+mitre: "TA0009 Collection, T1530 Data from Cloud Storage"
