@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 VULNQUEST
+Copyright (c) 2026 vulnquest58
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+ADDITIONAL NOTICE — AUTHORISED USE ONLY
+
+origintrace is security tooling. It must be used exclusively against systems for
+which you hold explicit, documented authorisation: an engagement contract, a bug
+bounty program scope that permits the activity, or systems you own.
+
+Enumerating infrastructure outside an authorised scope can violate computer
+misuse law in most jurisdictions and the terms of the program you are working
+under. The authors accept no liability for misuse.
