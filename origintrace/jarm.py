@@ -15,8 +15,8 @@ Why this exists next to :mod:`origintrace.tlsfp`:
   that a normal handshake cannot. It also sees the server's *choice* when offered
   a bad menu, which is far more distinctive.
 
-The output is a 62-character fingerprint â€” 30 hex characters of cipher/version
-selection followed by 32 of ALPN answer â€” exactly as specified by the original
+The output is a 62-character fingerprint — 30 hex characters of cipher/version
+selection followed by 32 of ALPN answer — exactly as specified by the original
 research, so hashes are comparable with public JARM databases.
 
 Everything here is pure ``socket``: no third-party TLS library re-implements the
@@ -223,7 +223,7 @@ class JarmResult:
 
     @property
     def short(self) -> str:
-        """First 30 characters â€” the cipher/version half of the fingerprint."""
+        """First 30 characters — the cipher/version half of the fingerprint."""
         return self.fingerprint.split(".")[0] if self.fingerprint else ""
 
     def to_dict(self) -> Dict[str, object]:
@@ -329,11 +329,11 @@ def build_client_hello(tls_version: str, cipher_list: str, order: str,
     if groups:
         extensions += _extension(0x000a, _groups_bytes(groups))
 
-    # ec_point_formats (0x000b) â€” TLS 1.3 forbids this extension.
+    # ec_point_formats (0x000b) — TLS 1.3 forbids this extension.
     if not tls13:
         extensions += _extension(0x000b, b"\x01\x00")
 
-    # signature_algorithms (0x000d) â€” mandatory for 1.3, harmless for 1.2.
+    # signature_algorithms (0x000d) — mandatory for 1.3, harmless for 1.2.
     sigalgs = bytes.fromhex("040308040401050308050501080606010201")
     extensions += _extension(0x000d, struct.pack("!H", len(sigalgs)) + sigalgs)
 
@@ -342,22 +342,22 @@ def build_client_hello(tls_version: str, cipher_list: str, order: str,
     if alpn_ext:
         extensions += alpn_ext
 
-    # supported_versions (0x002b) â€” required for a 1.3 probe.
+    # supported_versions (0x002b) — required for a 1.3 probe.
     if tls13:
         versions = VERSIONS["1.3"] + VERSIONS["1.2"] + VERSIONS["1.1"]
         extensions += _extension(0x002b,
                                  struct.pack("!B", len(versions)) + versions)
         # key_share (0x0033) is mandatory in TLS 1.3: without it a strict stack
         # answers alert 109 (missing_extension) and the probe measures nothing.
-        # The key material never has to be *usable* â€” only the handshake's shape
-        # is fingerprinted â€” but it must be a plausible x25519 public key: 32
+        # The key material never has to be *usable* — only the handshake's shape
+        # is fingerprinted — but it must be a plausible x25519 public key: 32
         # zero bytes are a low-order point that strict stacks reject with
         # alert 50 (decode_error).
         share = b"\x00\x1d" + struct.pack("!H", 32) + os.urandom(32)
         extensions += _extension(0x0033,
                                  struct.pack("!H", len(share)) + share)
 
-    # session_ticket (0x0023) â€” empty, but its presence changes the stack's answer.
+    # session_ticket (0x0023) — empty, but its presence changes the stack's answer.
     extensions += _extension(0x0023, b"")
 
     # Handshake body.

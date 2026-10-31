@@ -2,9 +2,9 @@
 
 Two request shapes matter for origin work and they are easy to conflate:
 
-* **Baseline** â€” ``https://target/`` resolved normally. This is what the world
+* **Baseline** — ``https://target/`` resolved normally. This is what the world
   sees, usually through the CDN.
-* **Vhost probe** â€” connect to a *specific IP* while still sending
+* **Vhost probe** — connect to a *specific IP* while still sending
   ``Host: target``. This is what asks "do you, 203.0.113.9, serve this site?"
 
 A host that answers a vhost probe with the real page is either the origin or a
@@ -142,7 +142,7 @@ def fetch(
 
     ``connect_ip`` is what makes a vhost probe possible: DNS is bypassed while
     the TLS SNI and the ``Host`` header still name the real target, so a server
-    that hosts the site answers with the site â€” and one that does not answers
+    that hosts the site answers with the site — and one that does not answers
     with its default page.
 
     TLS verification is off by default **only** because origin servers routinely
@@ -265,7 +265,7 @@ def certificate(ip: str, server_name: str, port: int = 443,
 
     The DER bytes are parsed directly rather than read from
     ``ssl.getpeercert()``. With ``verify_mode = CERT_NONE`` the stdlib returns an
-    **empty dict** â€” which meant every field below stayed blank and the TLS
+    **empty dict** — which meant every field below stayed blank and the TLS
     evidence could never fire. That was invisible without a live test, because
     the function still reported ``ok = True``.
     """
